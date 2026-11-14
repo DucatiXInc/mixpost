@@ -1,322 +1,125 @@
-# Production Runbook
+# Production runbook
 
-This repo is the public Mixpost Lite codebase, but the production instance runs Mixpost Pro Team from Docker on the Hetzner host.
+Production runs Mixpost Pro Team in a frozen Docker image. This repository's
+Lite package is not the deployed application. See the [current release record](current-production-release.md)
+for the verified image and dated acceptance evidence.
 
-Use this runbook for operational context only. Production-specific bind mounts and image versions may differ from this Lite repository.
+## Host and configuration
 
-For image updates, follow [Mixpost Update Playbook](mixpost-update-playbook.md).
+| Item | Value |
+| --- | --- |
+| SSH alias | `mixpost-hetzner` (`root@65.109.229.99`) |
+| App directory | `/root/mixpost` |
+| App container | `mixpost-mixpost-1` |
+| Compose files | `docker-compose.yml` and `docker-compose.dashboard-overrides.yml` |
+| Public app | `https://mixpost.peachyhq.com/mixpost` |
+| Liveness | `https://mixpost.peachyhq.com/api/health` |
+| Release identity/evidence | `/root/mixpost/frozen-release.json` |
 
-For connecting Instagram accounts (standalone OAuth), Meta app identities, and webhook wiring, follow the [Instagram Standalone OAuth Runbook](instagram-standalone-oauth.md).
+Preserve both Compose files, all mounted customizations, the startup guard,
+MySQL, Redis, credentials, volumes and networks. Never use `docker compose down -v`
+or the generic/latest updater. Updates and override changes follow the
+[update playbook](mixpost-update-playbook.md) and [frozen release gates](frozen-release-gates.md).
+Only the app is recreated after exact-candidate validation and checkpointing.
 
-## Production Host
+## Read-only health checks
 
-- SSH alias: `mixpost-hetzner`
-- Host: `root@65.109.229.99`
-- App directory: `/root/mixpost`
-- Compose file: `/root/mixpost/docker-compose.yml`
-- Main app container: `mixpost-mixpost-1`
-- Production image: `inovector/mixpost-pro-team:latest`
-- Upstream base: `inovector/mixpost-pro-team@sha256:b519206ccc9baae1d1778dc58cbfed5637757287e5443651a6ea018ca3b75759`
-- Observed package version: `inovector/mixpost-pro-team 6.3.0`
-
-## Fast Health Checks
-
-SSH to the production host:
+On the host:
 
 ```bash
 ssh mixpost-hetzner
+cd /root/mixpost
+docker compose -f docker-compose.yml -f docker-compose.dashboard-overrides.yml ps
+docker compose -f docker-compose.yml -f docker-compose.dashboard-overrides.yml logs --tail=120 mixpost
+docker inspect mixpost-mixpost-1 --format '{{.Config.Image}} {{.Image}}'
+docker exec mixpost-mixpost-1 sh -lc 'cd /var/www/html && composer show inovector/mixpost-pro-team --no-interaction'
+docker exec mixpost-mixpost-1 php artisan horizon:status
+docker exec mixpost-mixpost-1 php artisan schedule:list
+curl -fsS https://mixpost.peachyhq.com/api/health
 ```
 
-Check container state:
+Compare image identity with the release record. A 200 liveness response does not
+prove database, queue, provider, storage or authenticated UI behavior. Review
+logs privately; sanitize tokens and personal data before sharing evidence.
+
+Inspect mounted file locations without printing environment values:
 
 ```bash
-docker compose -f /root/mixpost/docker-compose.yml ps
+docker inspect mixpost-mixpost-1 --format '{{range .Mounts}}{{println .Source "->" .Destination "writable=" .RW}}{{end}}'
 ```
 
-Check recent app logs:
+The [instance alteration register](mixpost-instance-alterations.md) records intent
+and historical mounts. The actual runtime inventory and both effective Compose
+files determine what must be preserved. Image-baked application/provider files
+also need review; a mount-only inventory is incomplete.
 
-```bash
-docker compose -f /root/mixpost/docker-compose.yml logs --tail=200 mixpost
-```
+## Queues, broadcasting and scheduler
 
-Check the package version inside the app container:
+Required production routing values recorded for this instance:
 
-```bash
-docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && composer show inovector/mixpost-pro-team --no-interaction"
-```
-
-Check PHP syntax for a host-mounted override before restarting:
-
-```bash
-docker exec mixpost-mixpost-1 php -l /var/www/html/vendor/inovector/mixpost-pro-team/src/Schedule.php
-```
-
-## Production Overrides
-
-The compose stack bind-mounts several local files into the Mixpost container as read-only overrides. These files are not part of this local Lite repo and should be treated as production-specific patches.
-
-Track durable override intent, acceptance checks, and upstream-removal criteria in [Mixpost Instance Alterations](mixpost-instance-alterations.md). Review that register before every Mixpost image update.
-
-The prior custom upload-resilience image was retired in Pro Team 6.2.2 because its upload handling is now upstream. Keep its source only as a rollback reference.
-
-- `/root/mixpost/Schedule.php`
-- `/root/mixpost/MigrateStorage.php`
-- `/root/mixpost/AppMigrateStorageCommand.php`
-- `/root/mixpost/TrustProxies.php`
-- `/root/mixpost/ManagesTwitterJobs.php`
-- `/root/mixpost/ManagesTwitterResources.php`
-- `/root/mixpost/ImportTwitterPostsJob.php`
-- `/root/mixpost/ManagesBlueskyJobs.php`
-- `/root/mixpost/BlueskyUsesUploads.php`
-- `/root/mixpost/ManagesInstagramJobs.php`
-- `/root/mixpost/InstagramAnalytics.php`
-- `/root/mixpost/ManagesInstagramResources.php`
-- `/root/mixpost/ImportInstagramMediaJob.php`
-- `/root/mixpost/BuildChatSystemPrompt.php`
-- `/root/mixpost/MediaUploadFile.php`
-- `/root/mixpost/ChunkedUploadComplete.php`
-- `/root/mixpost/MediaSocialVideoConversion.php`
-- `/root/mixpost/OptimizeSocialVideoMediaJob.php`
-- `/root/mixpost/uploads.ini`
-- `/root/mixpost/peachy-start.sh`
-- `/root/mixpost/app.blade.php` if Google Analytics needs to be preserved across Docker image updates
-- `/root/mixpost/web.php`, `/root/mixpost/home.blade.php`, and `/root/mixpost/peachy-posting.png` for the Peachy landing page
-
-Required queue and broadcast routing values in `/root/mixpost/.env`:
-
-```text
+```dotenv
 REVERB_HOST=mixpost.peachyhq.com
 REVERB_PORT=443
 REVERB_SCHEME=https
 REDIS_QUEUE=mixpost-default
 ```
 
-Do not pair `REVERB_SCHEME=https` with port `80`; server-side broadcasts will reach the plain HTTP router and return `404 page not found`. Without `REDIS_QUEUE=mixpost-default`, unnamed Laravel jobs go to `default` while Horizon listens on `mixpost-default`.
-
-Before editing an override, copy a timestamped backup:
-
-```bash
-cp /root/mixpost/Schedule.php /root/mixpost/Schedule.php.bak.$(date +%Y%m%d-%H%M%S)
-```
-
-After editing an override, lint the mounted file in the container and restart the app:
-
-```bash
-docker exec mixpost-mixpost-1 php -l /var/www/html/vendor/inovector/mixpost-pro-team/src/Schedule.php
-docker compose -f /root/mixpost/docker-compose.yml restart mixpost
-```
-
-## Google Analytics
-
-Google Analytics is opt-in and controlled by:
-
-```text
-MIXPOST_GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
-```
-
-The app template only emits the GA script when this variable is set. The Vue/Inertia app also sends page-view events after client-side navigation so Mixpost route changes are tracked without full page reloads.
-
-Because production runs from the `inovector/mixpost-pro-team` Docker image, keep the tracking ID in the compose environment and preserve the Blade template as a host-mounted override if the image does not include this patch:
-
-```yaml
-environment:
-  MIXPOST_GOOGLE_ANALYTICS_ID: G-XXXXXXXXXX
-volumes:
-  - /root/mixpost/app.blade.php:/var/www/html/vendor/inovector/mixpost-pro-team/resources/views/app.blade.php:ro
-```
-
-Restart after changing the environment or override:
-
-```bash
-ssh mixpost-hetzner 'docker compose -f /root/mixpost/docker-compose.yml restart mixpost'
-```
-
-Verify the environment value inside the container:
-
-```bash
-ssh mixpost-hetzner 'docker exec mixpost-mixpost-1 printenv MIXPOST_GOOGLE_ANALYTICS_ID'
-```
-
-Verify Mixpost routes are registered after the restart:
-
-```bash
-ssh mixpost-hetzner 'docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && php artisan route:list --path=mixpost"'
-```
-
-Then load the Mixpost UI in a browser and confirm the rendered shell contains the GA script only when the measurement ID is configured. Client-side navigation should send `page_view` events. The Lite app tracks Inertia navigation from `resources/js/app.js` when `window.gtag` is available.
-
-## Scheduler And Queues
-
-The Lite scheduler in this repository registers:
-
-- `mixpost:run-scheduled-posts` every minute.
-- `mixpost:import-account-data` every 30 minutes for low-cost providers and every 2 hours for cost-controlled providers.
-- `mixpost:import-account-audience` every 30 minutes for low-cost providers and every 3 hours for cost-controlled providers.
-- `mixpost:process-metrics` every 30 minutes for low-cost providers and every 3 hours for cost-controlled providers.
-- `mixpost:delete-old-data` daily.
-- `mixpost:prune-temporary-directory` hourly.
-
-Production Pro Team may add providers or overrides. When API costs change, inspect the mounted schedule and provider job traits before changing intervals.
-
-Production also mounts a custom Pro Team scheduler override at `/root/mixpost/Schedule.php`, mirrored locally at `ops/production-overrides/Schedule.php`. As of 2026-06-12, that override adds a dedicated low-cost post analytics callback every 30 minutes:
-
-- Instagram and Instagram standalone accounts dispatch stories, total-value insights, media/post insights, and audience jobs.
-- Facebook Page accounts import page posts and then chain post-insight imports.
-- YouTube accounts import channel videos and video statistics.
-- The generic `medium` provider-job bucket remains every 3 hours so other providers are not accelerated.
-- Twitter/X post analytics remain on the separate daily/monthly cost-controlled cadence.
-
-Verify the production schedule after changing the override:
-
-```bash
-ssh mixpost-hetzner 'docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && php artisan schedule:list | grep low-cost-post-analytics-30min"'
-```
-
-Expected schedule row:
-
-```text
-*/30 * * * *  <workspace> - mixpost:low-cost-post-analytics-30min
-```
-
-Useful manual commands:
-
-```bash
-ssh mixpost-hetzner 'docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && php artisan mixpost:run-scheduled-posts"'
-ssh mixpost-hetzner 'docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && php artisan mixpost:import-account-audience --providers=twitter"'
-ssh mixpost-hetzner 'docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && php artisan mixpost:process-metrics --providers=twitter"'
-```
-
-Manual Facebook Page follower refresh for Rich Merritt account `84` in workspace `24`:
-
-```bash
-ssh mixpost-hetzner 'cd /root/mixpost && docker compose exec -T mixpost php artisan tinker --execute='\''$workspace = Inovector\Mixpost\Models\Workspace::find(24); $workspace->execute(function () { $account = Inovector\Mixpost\Models\Account::find(84); (new Inovector\Mixpost\SocialProviders\Meta\Jobs\ImportFacebookPageFollowersJob($account))->handle(); });'\'''
-```
-
-Verify the stored follower row:
-
-```bash
-ssh mixpost-hetzner 'cd /root/mixpost && docker compose exec -T mysql sh -lc '\''mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT account_id, date, total FROM mixpost_audience WHERE account_id = 84 ORDER BY date DESC LIMIT 5;"'\'''
-```
-
-## X API Cost Mitigation
-
-Date: 2026-05-11
-
-Problem: Mixpost was running Twitter/X account analytics jobs every 3 hours. With 14 authorized Twitter accounts, Horizon logs showed each 3-hour burst running about 14 follower jobs and 30 post timeline jobs. The post timeline job calls `GET users/{id}/tweets` with `max_results=100` and metrics fields, then paginates when X returns `next_token`.
-
-Before:
-
-- `ImportTwitterFollowersJob` ran as high priority every 3 hours.
-- `ImportTwitterPostsJob` ran as high priority every 3 hours.
-- Approximate scheduled X read volume: 44 jobs every 3 hours, about 352 per day.
-
-Change:
-
-- Kept `ImportTwitterFollowersJob` in `highPriorityJobs()` so follower counts continue updating every 3 hours.
-- Moved `ImportTwitterPostsJob` to `dailyPriorityJobs()` so timeline/post analytics update daily.
-
-Follow-up changes:
-
-Date: 2026-06-05
-
-The X console still showed roughly $6/day of post-object cost after the daily-only timeline import change. Horizon and database history showed that the cheaper June 1 cost aligned with fewer `ImportTwitterPostsJob` runs and fewer imported Twitter post-insight rows, not fewer published X posts.
-
-- `ImportTwitterFollowersJob` remains in `highPriorityJobs()` so follower counts continue updating.
-- `ImportTwitterPostsJob` remains in `initialJobs()` so newly connected accounts still get initial post/content analytics.
-- `ImportTwitterPostsJob` is not in `dailyPriorityJobs()`.
-- `Schedule.php` adds custom Twitter post analytics callbacks for each workspace.
-- Active X accounts run daily at `0 0 * * *`.
-- Inactive X accounts run monthly at `0 0 1 * *`.
-- Active means at least 3 published X posts in the last 30 days, or at least 1 published X post in the last 14 days.
-- Publishing to X is unchanged.
-
-Changed file:
-
-```text
-/root/mixpost/ManagesTwitterJobs.php
-/root/mixpost/Schedule.php
-```
-
-Backup created before the change:
-
-```text
-/root/mixpost/ManagesTwitterJobs.php.bak.20260511-033517
-```
-
-Verification:
-
-```bash
-ssh mixpost-hetzner 'docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && php"' <<'PHP'
-<?php
-require 'vendor/autoload.php';
-$app = require 'bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-$class = Inovector\Mixpost\SocialProviders\Twitter\TwitterProvider::class;
-echo "high=".implode(',', $class::highPriorityJobs()).PHP_EOL;
-echo "daily=".implode(',', $class::dailyPriorityJobs()).PHP_EOL;
-PHP
-```
-
-Expected output:
-
-```text
-high=Inovector\Mixpost\SocialProviders\Twitter\Jobs\ImportTwitterFollowersJob
-daily=
-```
-
-Expected schedule row:
-
-```text
-0 0 * * *  <workspace> - mixpost:twitter-post-analytics-daily
-0 0 1 * *  <workspace> - mixpost:twitter-post-analytics-monthly
-```
-
-Manual X post/content analytics updates:
-
-Future reminder: when investigating X analytics costs, stale X post/content metrics, or active/inactive account cadence, suggest these scripts before changing scheduler code. Run with `DRY_RUN=1` first to preview the selected accounts without dispatching jobs.
-
-```bash
-DRY_RUN=1 ops/scripts/update-active-x-accounts.sh
-DRY_RUN=1 ops/scripts/update-inactive-x-accounts.sh
-DRY_RUN=1 ops/scripts/update-all-x-accounts.sh
-
-ops/scripts/update-active-x-accounts.sh
-ops/scripts/update-inactive-x-accounts.sh
-ops/scripts/update-all-x-accounts.sh
-```
-
-Rollback:
-
-```bash
-ssh mixpost-hetzner 'cp /root/mixpost/Schedule.php.bak.20260605-active-daily-inactive-monthly /root/mixpost/Schedule.php && docker compose -f /root/mixpost/docker-compose.yml restart mixpost'
-```
-
-Rollback to the earlier daily-post-analytics state:
-
-```bash
-ssh mixpost-hetzner 'cp /root/mixpost/ManagesTwitterJobs.php.bak.20260511-033517 /root/mixpost/ManagesTwitterJobs.php && docker compose -f /root/mixpost/docker-compose.yml restart mixpost'
-```
-
-Restart after future override edits:
-
-```bash
-ssh mixpost-hetzner 'docker exec mixpost-mixpost-1 php -l /var/www/html/vendor/inovector/mixpost-pro-team/src/SocialProviders/Twitter/Concerns/ManagesTwitterJobs.php && docker compose -f /root/mixpost/docker-compose.yml restart mixpost'
-```
-
-## Media Storage Migration
-
-Production Pro Team uses `mixpost:migrate-storage` for moving Mixpost media files between configured Laravel filesystem disks. The mounted `/root/mixpost/MigrateStorage.php` override avoids S3 prefix listing and copies media paths from the database manifest instead.
-
-Dry run:
-
-```bash
-ssh mixpost-hetzner 'docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && php artisan mixpost:migrate-storage public s3 --dry-run"'
-```
-
-Migrate files and keep the source copy:
-
-```bash
-ssh mixpost-hetzner 'docker exec -i mixpost-mixpost-1 sh -lc "cd /var/www/html && php artisan mixpost:migrate-storage public s3"'
-```
-
-Only use `--delete-source` after validating the target disk and recent media URLs.
+Port 80 with HTTPS causes broadcasts to reach the wrong router. A missing queue
+name can send unnamed jobs to `default` while Horizon consumes `mixpost-default`.
+Inspect the effective configuration before diagnosing a stalled queue; do not
+clear queues or dispatch publishing commands as a health check.
+
+The current schedule includes:
+
+- Normal publishing scans and the production provider import/metric jobs.
+- The low-cost Instagram/Facebook/YouTube analytics callback every 30 minutes.
+- Age-tiered X post analytics; review the mounted schedule for current bounds
+  and the provider's API usage controls before altering cost-sensitive cadence.
+- [Instagram Story media capture](instagram-story-media.md) hourly at minute zero,
+  in the background with overlap protection.
+- [TTB comment reconciliation](../ops/comment-sync/README.md) every five minutes,
+  scoped to account 109/workspace 12, with bounded rotating scans.
+
+The Lite scheduler and older alteration entries are historical references for
+production cadence. Use the running `schedule:list` and effective Pro source.
+Manual imports, Story capture and reconciliation write data and are operational
+actions; use the relevant feature runbook and existing authorization.
+
+## Common investigations
+
+| Symptom | Reference and first check |
+| --- | --- |
+| Blank page or missing assets | Update playbook: compare served asset paths to the exact image; avoid individual hashed chunk/manifest mounts |
+| Interrupted or stuck upload | [Upload recovery](video-upload-recovery.md); inspect startup-gate evidence and current local staging contract |
+| Instagram media fetch failure | [Download timeout](instagram-media-download-timeout.md); check public storage URL and stored provider response |
+| Missing Story video | [Story capture](instagram-story-media.md); distinguish a saved cover from a missing provider video URL |
+| Deleted Instagram comment still visible | [TTB availability](../ops/comment-sync/README.md); saved history persists and fallback can take about an hour |
+| Failed Bluesky reply | [Publishing resilience](bluesky-publishing-resilience.md); inspect live IDs before retrying any destination |
+| Failure email | [Notifications](post-failure-notifications.md); distinguish relay acceptance from inbox receipt |
+| OAuth/account connection | [Instagram OAuth](instagram-standalone-oauth.md); submission history does not prove current Advanced Access |
+| Root disk usage/checkpoint lookup | [Checkpoint storage](checkpoint-storage.md); retain current/previous recovery material |
+
+## Google Analytics and media storage
+
+Google Analytics is opt-in through `MIXPOST_GOOGLE_ANALYTICS_ID`. Preserve the
+existing configured value and effective layout customization during updates.
+The Lite app's analytics implementation is not proof of Pro behavior; verify
+rendered tracking and client navigation against the exact deployed application.
+Environment changes require configuration regeneration and a reviewed app
+recreation; a container restart alone does not apply changed Compose values.
+
+Production's `mixpost:migrate-storage` customization copies database-listed media
+paths without S3 prefix listing. Consult [thumbnail storage](mixpost-thumbnail-storage.md)
+and review the installed command before a storage migration. Story capture has
+its own durable paths/table, which Annex reads; include that contract in any
+migration. Retain source objects until target bytes and reader URLs are verified.
+
+## Recovery
+
+Follow the matching release's checkpoint plan and the update playbook. Restore
+only reviewed files with their exact image, wrapper and passing gate. Database
+migrations may require a matching database restore and reconciliation of later
+writes/provider IDs. Never overwrite later successful publishing blindly.
+The TTB comment patch needs no schema rollback; preserve all inbox and Story
+history. Keep additive Story rows and media when rolling back the capture image.
+Archive superseded evidence only through the [verified checkpoint workflow](checkpoint-storage.md).
