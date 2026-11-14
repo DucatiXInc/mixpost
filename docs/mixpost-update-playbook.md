@@ -100,13 +100,16 @@ Preserve prior passing startup gates and their matching override snapshots. A st
 
 Record old/new versions, package source and lock hashes, base/frozen image IDs, Git commit, mount inventory, checkpoint paths, migration output, regression results and runtime/browser evidence. Clearly distinguish tests with fake providers from witnessed live publishing. Keep sensitive backups on the host; publish only sanitized hashes and outcomes in the repository.
 
-After explicit acceptance and supersession, register eligible old checkpoints
-with `/root/mixpost/checkpoint-tools/checkpoint-maintenance.py complete`, following
-[checkpoint storage](checkpoint-storage.md) and Infra's current runbook. Supply
-acceptance evidence, a newer verified consistent full recovery dump and exact
-eligible bulk paths. Unregistered/unfinished work stays local. Keep current and
-previous recovery bundles, targeted undo files, tools and images; add KEEP-LOCAL
-and resolve an eligible completion record before reactivating old repair work.
+Every accepted deployment must finish through the **automatic checkpoint
+completion gate** in [checkpoint storage](checkpoint-storage.md): run its real
+final read-only verifier through `checkpoint-maintenance.py operation ...
+--acceptance REPORT --verify CHECKER ...`. Require `state: accepted` before
+reporting the deployment complete. This records the new checkpoint and
+automatically registers superseded accepted predecessors; the newest/current
+and previous recovery bundles remain protected. The daily job catches missed
+registration writes and flags untracked folders. This hook does not replace any
+candidate, rehearsal, browser, provider or explicit acceptance requirement.
+Never repeat a deployment mutation to repair a registration error.
 
 ## Facebook post insights compatibility gate
 

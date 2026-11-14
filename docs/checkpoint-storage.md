@@ -38,38 +38,65 @@ archives have no automatic expiry.
 
 Dan authorized the dedicated server-side maintenance timer on November 14, 2026.
 Its configured schedule is daily at 09:00 America/Los_Angeles (up to five minutes
-of jitter), independently of Codex/the Mac. At the read-only pre-ship check on
-November 14 at 07:44 AM PST (`2026-11-14T15:44:38Z`), systemd reported the timer
-loaded but **disabled and inactive**, with no next activation. Authorization and
-installed configuration do not establish that scheduled maintenance is running.
-This docs release does not enable it. The Infra runbook records the prior local
-Codex schedule as paused; that separate automation was not rechecked here.
-See Infra's current `docs/CHECKPOINT-ARCHIVES.md`, also installed privately as
-`/root/mixpost/checkpoint-tools/CHECKPOINT-ARCHIVES.md`, for the completion command:
+of jitter), independently of Codex/the Mac. A live check on November 14 at
+08:14 AM PST (`2026-11-14T16:14:29Z`) reported the timer **active**, with its next
+activation at 09:01:53 AM PST. The earlier 07:44 AM pre-ship snapshot had found
+it disabled; that older observation is superseded for current scheduling status.
+Always inspect systemd for current runtime state. The separate local Codex
+schedule remains paused.
+The current installed reference is Infra's `docs/CHECKPOINT-ARCHIVES.md`, also
+available privately at `/root/mixpost/checkpoint-tools/CHECKPOINT-ARCHIVES.md`.
+
+## Automatic completion gate
+
+Use this as the final read-only verification step for **every deployment and
+repair that created checkpoints**, after the operation's required checks and
+explicit acceptance. Do not report the task complete until it returns
+`state: accepted`:
 
 ```bash
-python3 /root/mixpost/checkpoint-tools/checkpoint-maintenance.py complete OLD-CHECKPOINT \
-  --acceptance /root/mixpost/backups/OLD-CHECKPOINT/accepted-report.json \
-  --replacement /root/mixpost/backups/NEWER-RECOVERY-CHECKPOINT/database.sql \
-  --remove database.sql \
-  --remove candidate-package/node_modules
+python3 /root/mixpost/checkpoint-tools/checkpoint-maintenance.py operation CHECKPOINT \
+  --acceptance /root/mixpost/backups/CHECKPOINT/accepted-report.json \
+  --verify python3 /root/mixpost/backups/CHECKPOINT/verify-completed-operation.py
 ```
 
-Replace the example names with reviewed exact paths. The completion command
-records eligibility; it does not establish backup consistency or perform a
-restore rehearsal.
+Replace the examples with the operation's actual checkpoint, private report and
+read-only acceptance checker. The checker may write its report; it must return
+nonzero for any missing/failed required check. Do not substitute a placeholder
+success command, or wrap the production mutation/deployment command: a metadata
+retry must never repeat a cutover, account write or provider action. The wrapper
+cannot replace rehearsal, authenticated browser/provider evidence or required
+user acceptance. It never creates a fresh database dump just for housekeeping.
 
-After acceptance and supersession, the deployment/repair operator must register
-exact eligible bulk paths, acceptance evidence and a newer verified full recovery
-dump. Unregistered and active work stays local. A 24-hour quiet period, unchanged
-source/evidence, dynamic recovery protections and full uncached archive read-back
-are required before deletion. The job cannot remove whole directories, row undo
-files, repair media or image exports. Current/previous recovery bundles and exact
-images remain local. Before reusing a registered checkpoint, add a KEEP-LOCAL
-marker to hold it and remove or resolve its eligible completion record before
-reactivating the source. Results are in
-`/root/mixpost/checkpoint-archives/maintenance-status.json` and the systemd journal;
-unknown or failed eligibility checks retain the local data.
+Successful verification automatically discovers supported full dumps and build
+dependencies, pins the acceptance/source/recovery evidence, and writes a durable
+completion record under `checkpoint-operations`. Each newer accepted recovery
+backup automatically enrolls superseded accepted predecessors. MySQL and Postgres
+require their own matching newer recovery proofs; the newest accepted checkpoint
+waits for a successor. Current/previous recovery bundles, exact images, row undo,
+repair media and referenced tools remain protected. There is no separate manual
+registration step for each old backup.
+
+The daily server job retries enrollment from saved accepted records if a lock or
+interruption prevented it, without rerunning verification or production actions.
+A failure before acceptance is recorded returns nonzero. A failure afterward
+keeps the accepted record for metadata-only recovery. Never fix registration by
+repeating the deployment or repair mutation.
+
+New untracked checkpoints, or growth/additions inside a legacy untracked folder,
+get a 24-hour observation grace period and then appear in `missingRegistration`
+in `/root/mixpost/checkpoint-archives/maintenance-status.json`; the service fails
+visibly while retaining their data. Failed final checks and operations left
+active for seven days also require attention. A one-time legacy inventory keeps
+existing unaccepted recovery material separate; it does not accept or delete it
+and cannot be reset to silence new missed work. Age or quietness never proves
+acceptance or permits deletion.
+
+Before reusing an old checkpoint, add KEEP-LOCAL and resolve its lifecycle record.
+The cleanup job still requires a 24-hour quiet period, unchanged evidence, dynamic
+recovery/dependency checks, a successful full uncached archive read-back and a
+private durable receipt before deleting registered bulk paths. Whole directories,
+row undo, media, configuration, startup proofs and image exports stay local.
 
 The archive helper itself never deletes local files. The separately authorized
 maintenance job may remove only the eligible registered bulk paths after its

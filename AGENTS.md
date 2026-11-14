@@ -46,7 +46,7 @@ Use `/root/mixpost/backups` as temporary working space for deployment and repair
 checkpoints. After acceptance and after the checkpoint is superseded, archive it
 to the existing encrypted Hetzner S3 restic repository using Infra's reviewed
 `backups/archive-checkpoint.py` workflow and checkpoint-archive runbook. The
-source is currently on Infra branch `codex/mixpost-checkpoint-archive`.
+canonical source is Infra `main` (the initial host job shipped in PR #258).
 Require full read-back checksum verification and a private receipt under
 `/root/mixpost/checkpoint-archives` before removing an authorized local copy.
 Archives use `checkpoint-archive`/`checkpoint-app-mixpost` tags, never
@@ -60,11 +60,16 @@ image archive and verifying recovery.
 Dan authorized the dedicated Hetzner `mixpost-checkpoint-maintenance.timer` on
 2026-11-14. It archives and verifies accepted, superseded checkpoints before
 removing only explicitly registered full dumps/build dependencies. At operation
-completion, register eligible old checkpoints with the host's
-`/root/mixpost/checkpoint-tools/checkpoint-maintenance.py complete` command, with
-acceptance evidence and a newer verified consistent full recovery dump, following
-Infra's `docs/CHECKPOINT-ARCHIVES.md`. Unregistered/unfinished work is kept. Before
-reusing an old checkpoint for active repair, add a KEEP-LOCAL marker; do not leave
-an eligible completion record on a source being reactivated. Keep current/previous
-release bundles, exact images/exports, targeted undo files and referenced tools.
+completion, run the actual final read-only acceptance checker through the host's
+`/root/mixpost/checkpoint-tools/checkpoint-maintenance.py operation CHECKPOINT
+--acceptance REPORT --verify CHECKER ...` wrapper, following Infra's
+`docs/CHECKPOINT-ARCHIVES.md` and `docs/checkpoint-storage.md`. Do not report a
+deployment/repair complete until it returns `state: accepted`. It automatically
+records completed backups and enrolls superseded accepted predecessors; there is
+no separate per-backup registration step. The daily job recovers missed queue
+writes and flags unregistered checkpoints. If registration fails after acceptance,
+repair metadata only; never repeat a cutover or data mutation to fix registration.
+Unfinished/unregistered work stays local. Before reactivating old repair work,
+add KEEP-LOCAL and resolve any eligible record. Keep current/previous bundles,
+exact images/exports, targeted undo files and referenced tools local.
 This authorizes only the dedicated checkpoint job, not other timers or app deploys.
