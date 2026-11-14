@@ -114,6 +114,19 @@ and review the installed command before a storage migration. Story capture has
 its own durable paths/table, which Annex reads; include that contract in any
 migration. Retain source objects until target bytes and reader URLs are verified.
 
+## Completing repairs and deployments
+
+Every repair or deployment that creates `/root/mixpost/backups` checkpoints must
+run its final read-only acceptance verifier through the host's
+`checkpoint-maintenance.py operation CHECKPOINT --acceptance REPORT --verify
+CHECKER ...` wrapper. Do not report completion until it returns `state: accepted`.
+See the [completion gate](checkpoint-storage.md#automatic-completion-gate) for
+commands, recovery protections and metadata-only retry behavior. No separate
+per-backup enrollment step is needed. A failed verifier never marks the work
+accepted; incomplete/unknown work remains local and missed registrations are
+flagged by the daily server job. Do not use the wrapper to repeat a repair write,
+cutover or provider action.
+
 ## Recovery
 
 Follow the matching release's checkpoint plan and the update playbook. Restore
