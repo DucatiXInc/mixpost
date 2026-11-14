@@ -1,12 +1,17 @@
 name: Frozen release guard
 on:
+  workflow_dispatch:
   push:
     paths: ['ops/**', 'docs/customizations/**', '.github/workflows/frozen-release-gates.yml']
   pull_request:
     paths: ['ops/**', 'docs/customizations/**', '.github/workflows/frozen-release-gates.yml']
 jobs:
   release-guard:
+    permissions:
+      contents: read
+    # Preserve hosted execution for this public upstream fork.
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
