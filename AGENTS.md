@@ -39,3 +39,32 @@ credentials, volumes, and networks. Rehearse against isolated restored data;
 checkpoint before cutover and retain database-aware rollback evidence. Recreate
 only the app. Never use `docker compose down -v`. Report source, CI, rehearsal,
 cutover, storage verification, and authenticated browser proof separately.
+
+# Checkpoint storage
+
+Use `/root/mixpost/backups` as temporary working space for deployment and repair
+checkpoints. After acceptance and after the checkpoint is superseded, archive it
+to the existing encrypted Hetzner S3 restic repository using Infra's reviewed
+`backups/archive-checkpoint.py` workflow and checkpoint-archive runbook. The
+source is currently on Infra branch `codex/mixpost-checkpoint-archive`.
+Require full read-back checksum verification and a private receipt under
+`/root/mixpost/checkpoint-archives` before removing an authorized local copy.
+Archives use `checkpoint-archive`/`checkpoint-app-mixpost` tags, never
+`target-mixpost`, so the nightly seven-snapshot rotation does not expire them.
+Keep active repairs, current/previous recovery bundles, startup evidence,
+referenced validators and exact rollback images locally. Check incoming symlinks
+and mounts before removal; age alone is not proof that a checkpoint is unused.
+Never prune an unused frozen rollback image without first preserving its exact
+image archive and verifying recovery.
+
+Dan authorized the dedicated Hetzner `mixpost-checkpoint-maintenance.timer` on
+2026-11-14. It archives and verifies accepted, superseded checkpoints before
+removing only explicitly registered full dumps/build dependencies. At operation
+completion, register eligible old checkpoints with the host's
+`/root/mixpost/checkpoint-tools/checkpoint-maintenance.py complete` command, with
+acceptance evidence and a newer verified consistent full recovery dump, following
+Infra's `docs/CHECKPOINT-ARCHIVES.md`. Unregistered/unfinished work is kept. Before
+reusing an old checkpoint for active repair, add a KEEP-LOCAL marker; do not leave
+an eligible completion record on a source being reactivated. Keep current/previous
+release bundles, exact images/exports, targeted undo files and referenced tools.
+This authorizes only the dedicated checkpoint job, not other timers or app deploys.

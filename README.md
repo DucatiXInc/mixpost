@@ -14,6 +14,14 @@ Mixpost Lite is a self-hosted social media management package for Laravel. It ad
 
 This repository contains the Lite edition. Mixpost Pro and Enterprise are commercial editions with additional features and support options.
 
+## Peachy production documentation
+
+Our production instance runs a frozen Mixpost Pro Team image with additional
+customizations. Start with the [project docs index](docs/README.md) for the
+current release, operations, update gates, Story capture, comment availability
+and checkpoint storage. The Lite installation instructions below do not deploy
+that production application.
+
 ## Features
 
 - Social account management for supported providers.

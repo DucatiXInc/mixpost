@@ -1,14 +1,24 @@
 # Mixpost Instance Alterations
 
-## Instagram Story media for Annex (prepared, not deployed)
+## Current operational reference
+
+See the [docs index](README.md), [verified production snapshot](current-production-release.md)
+and [production runbook](production-runbook.md). Production runs Pro 7.5.1 with
+durable Story capture and the [TTB comment availability patch](../ops/comment-sync/README.md).
+The TTB implementation remains local/private; reconcile it before any upgrade.
+Current/previous recovery material must remain local; superseded evidence follows
+the [checkpoint storage and authorized maintenance policy](checkpoint-storage.md).
+
+## Instagram Story media for Annex (deployed November 13)
 
 The independent hourly capture command, additive `peachy_ig_story_media` table,
 application-file delivery mappings and required frozen-candidate Story tests are
 documented in [Instagram Story media](customizations/instagram-story-media.md).
 This preserves images/video covers without modifying Mixpost's imported posts
-or vendor source. Keep this contract on every update. Production deployment and
-the first capture require Dan's explicit approval. The existing Annex reader has
-database-wide SELECT access; no grants were changed.
+or vendor source. Keep this contract on every update. The approved cutover and
+first capture are recorded in the feature runbook and current production
+snapshot. The existing Annex reader has database-wide SELECT access; no grants
+were changed. Reader verification does not establish Annex display deployment.
 
 This document tracks production-specific changes made to the Peachy HQ Mixpost instance that are outside the upstream `inovector/mixpost-pro-team` Docker image.
 

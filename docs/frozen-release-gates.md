@@ -1,5 +1,28 @@
 # Frozen Mixpost release gates
 
+## Current release contract
+
+The [November 13 production snapshot](current-production-release.md) records 115
+required frozen behavior/build checks. Preserve the complete production-matching
+validator, wrapper, tests and fingerprints on every update:
+
+| Suite | Checks |
+| --- | ---: |
+| `frontend-network` | 18 |
+| `frontend-queue` | 3 |
+| `backend-recovery` | 12 |
+| `local-media-staging` | 17 |
+| `media-temp-permissions` | 1 |
+| `bluesky-publishing` | 18 |
+| `twitter-media-reads` | 17 |
+| `instagram-story-capture` | 28 |
+| `assets-build` | 1 |
+
+The [TTB comment patch](../ops/comment-sync/README.md) also requires its focused
+snapshot, database, broadcast and reply-target rehearsal tests. The frozen gate
+alone does not validate that patch or a database upgrade. Its deployed source
+remains local/private; reconcile it with the reviewed candidate before promotion.
+
 The [independent Story capture](customizations/instagram-story-media.md) adds 28
 required exact-candidate behavior checks and fingerprints for the application
 provider, command, collector, config and migration. A newer Mixpost importer does
@@ -15,18 +38,17 @@ contract remains required even when upstream supplies the implementation.
 
 The [customization documentation](customizations/README.md) and machine-checked
 [modification register](customizations/modifications.json) record every retained
-behavior. The local-upload candidate advances the contract to
-`video-upload-local-storage-v2`; the current production recovery release remains
-v1 until a reviewed cutover installs the matching wrapper and evidence together.
-Never replace the live wrapper with v2 while its app only has v1 evidence.
+behavior. Production uses `video-upload-local-storage-v2`. Always install a
+matching wrapper and passing evidence together; never replace a wrapper while
+its app only has evidence for an older contract.
 
 ## Enforcement
 
 `ops/scripts/verify-frozen-upload-release.py` resolves an existing image to its
 immutable ID, snapshots current read-only overrides, and exports the exact Pro
 source and published assets without copying the app environment or storage.
-It installs locked frontend dependencies, runs all 21 frontend/queue and 12
-backend recovery checks, and all 18 Bluesky publishing checks, then rebuilds the entire frontend, and compares every active
+It installs locked frontend dependencies, runs every required suite listed
+above, rebuilds the entire frontend, and compares every active
 manifest asset byte for byte with the candidate's published build. Compiler
 runs can assign different chunk hashes; the validator allows up to three builds
 from unchanged inputs and accepts only an exact match. It records each attempt
@@ -40,7 +62,7 @@ startup repair function, and requires create/write/read/cleanup to pass as
 `www-data`. The startup guard requires this permissions suite. Only shared parents
 are repaired; existing upload sessions and media files remain intact.
 
-The sixth suite has 17 local-storage checks: deterministic transfer, exact
+The local-storage suite has 17 checks: deterministic transfer, exact
 size/digest verification, lost-acknowledgment reconciliation, local retention,
 readiness, cleanup recovery, and capacity refusal. It uses no real storage calls.
 The separate `LocalMediaStagingIntegrationTest.php` must run in the isolated Pro
@@ -61,7 +83,7 @@ do not depend on a manual permission repair after cutover.
 
 The existing mounted `peachy-start.sh` validates passing evidence and the actual
 source, compiled assets, Composer/npm locks, and override fingerprints **before**
-Artisan, migrations, cron, Horizon, or PHP-FPM start. It requires all eight suites;
+Artisan, migrations, cron, Horizon, or PHP-FPM start. It requires every current suite;
 there is no “superseded upstream” exemption. The evidence is in the existing
 storage volume at `/var/www/html/storage/app/.release-gates/`. Multiple tested
 release records can coexist, allowing a staged candidate and the current or
@@ -79,9 +101,10 @@ existing frozen startup entrypoint. The Infra generic updater remains disabled.
 
 ## Candidate procedure
 
-Copy the reviewed repository's `ops/scripts/verify-frozen-upload-release.py`,
-`ops/production-overrides/peachy-start.sh`, the six upload test files, and `BlueskyPublishingResilienceTest.php` to the
-same relative paths under `/root/mixpost/release-tools/`. Use a frozen candidate
+Copy the reviewed production-matching `ops/scripts/verify-frozen-upload-release.py`,
+`ops/production-overrides/peachy-start.sh` and the complete required test/support
+bundle to the same relative paths under `/root/mixpost/release-tools/`. Include
+the X media-read and Story tests, not just the older upload/Bluesky suites. Use a frozen candidate
 built from exact licensed source and complete assets; never use `latest` or the
 archived 6.2.0 defaults. The current validator requires Python 3.11+, Node/npm,
 Docker, and the package's locked npm dependencies. A changed upstream interface

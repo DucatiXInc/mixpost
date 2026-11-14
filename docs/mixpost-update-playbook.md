@@ -2,6 +2,12 @@
 
 This supersedes the former “pull latest and recreate” procedure. Production is a licensed Pro application, while this repository also contains the separate Lite package. Updating the Lite dependency file does not upgrade production.
 
+Start with the [docs index](README.md), [current production release snapshot](current-production-release.md)
+and [production runbook](production-runbook.md). The running release includes
+the [TTB comment availability patch](../ops/comment-sync/README.md); its source
+remains local/private. Reconcile that effective source and its tests before a
+new candidate, preserving all inbox history and Story capture.
+
 The [customization hub](customizations/README.md), [modification register](customizations/modifications.json), and [hardening checklist](customizations/update-hardening.md) are required update inputs. Run `python3 ops/scripts/check-customization-register.py`; additions and deployment delivery modes must match the source register and image recipe.
 
 ## Release contract
@@ -29,6 +35,12 @@ Local-upload candidates additionally require the v2 six-suite gate, isolated rea
 2. Record running Pro version, Composer source reference and lock hash, Docker image ID, Compose files, entrypoint, all bind mounts and hashes, and MySQL/Redis container IDs. Inspect runtime app/bootstrap/package source against the pristine installed archive to catch unmounted hotfixes.
 3. Save the current Compose, environment, every mounted file, release metadata, pristine app archive and a **consistent database dump** under a root-only timestamped backup directory. Do not put credentials, database dumps or licensed full-source archives in Git. Use the app container's database dump client with configured credentials, `--single-transaction --no-tablespaces --skip-lock-tables`; check exit status and dump size. MySQL 8.0.32's dump client can require unavailable FLUSH privileges; the app's MariaDB client works with the application user.
 4. Retain a frozen copy of the old application for rollback, not merely the old vendor base image. Preserve local media/storage and the external object-store configuration. Record queued/delayed jobs and upcoming scheduled publications before cutover.
+
+Preserve both effective Compose files, every mount, image-baked source, wrapper,
+passing gates and exact current/previous rollback images. Before Docker cleanup,
+preserve an exact image export and verify recovery. A top-level wildcard file
+copy is not a complete recovery checkpoint. Active repairs, current/previous
+bundles and referenced tools remain local under the [checkpoint storage policy](checkpoint-storage.md).
 
 ## 2. Obtain and compare the target
 
@@ -87,6 +99,14 @@ Preserve prior passing startup gates and their matching override snapshots. A st
 ## Required release evidence
 
 Record old/new versions, package source and lock hashes, base/frozen image IDs, Git commit, mount inventory, checkpoint paths, migration output, regression results and runtime/browser evidence. Clearly distinguish tests with fake providers from witnessed live publishing. Keep sensitive backups on the host; publish only sanitized hashes and outcomes in the repository.
+
+After explicit acceptance and supersession, register eligible old checkpoints
+with `/root/mixpost/checkpoint-tools/checkpoint-maintenance.py complete`, following
+[checkpoint storage](checkpoint-storage.md) and Infra's current runbook. Supply
+acceptance evidence, a newer verified consistent full recovery dump and exact
+eligible bulk paths. Unregistered/unfinished work stays local. Keep current and
+previous recovery bundles, targeted undo files, tools and images; add KEEP-LOCAL
+and resolve an eligible completion record before reactivating old repair work.
 
 ## Facebook post insights compatibility gate
 

@@ -5,6 +5,10 @@ An update is accepted only when required behavior is demonstrated against its
 exact licensed Pro source, compiled assets, mounted overrides, and runtime.
 Release notes and a newer version number cannot retire a modification.
 
+The [project docs index](../README.md) also covers everyday operations, the
+[current production snapshot](../current-production-release.md), and
+[checkpoint storage and authorized maintenance](../checkpoint-storage.md).
+
 ## Records and authority
 
 | Record | Purpose |
