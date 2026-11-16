@@ -204,7 +204,8 @@
     {
       "source": "ops/production-overrides/Schedule.php",
       "host": "Schedule.php",
-      "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Schedule.php"
+      "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Schedule.php",
+      "preservation": "Rebase the X rolling age windows onto the effective production scheduler; retain live comment reconciliation, Story capture registration, staged-media delivery and other provider jobs"
     },
     {
       "source": "ops/production-overrides/app.blade.php",
