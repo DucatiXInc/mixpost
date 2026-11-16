@@ -2,8 +2,8 @@
 
 ## Current release contract
 
-The [November 13 production snapshot](current-production-release.md) records 115
-required frozen behavior/build checks. Preserve the complete production-matching
+The 7.5.3 candidate requires **155 frozen behavior/build checks**; the
+[November 13 production snapshot](current-production-release.md) used 115. Preserve the complete production-matching
 validator, wrapper, tests and fingerprints on every update:
 
 | Suite | Checks |
@@ -17,8 +17,13 @@ validator, wrapper, tests and fingerprints on every update:
 | `twitter-media-reads` | 17 |
 | `instagram-story-capture` | 28 |
 | `assets-build` | 1 |
+| `ttb-comment-snapshot` | 33 |
+| `ttb-comment-broadcast` | 2 |
+| `ttb-comment-reply-target` | 5 |
 
-The [TTB comment patch](../ops/comment-sync/README.md) also requires its focused
+All 13 [TTB comment patch](../ops/comment-sync/README.md) source files are now
+mandatory startup fingerprints. Its snapshot/broadcast/reply-target tests are
+part of the frozen gate; the patch also requires its focused
 snapshot, database, broadcast and reply-target rehearsal tests. The frozen gate
 alone does not validate that patch or a database upgrade. Its deployed source
 remains local/private; reconcile it with the reviewed candidate before promotion.
@@ -256,3 +261,7 @@ An older gate without the Bluesky suite cannot satisfy the updated wrapper.
 Stage passing evidence before installing the wrapper; rollback must restore the
 previous exact wrapper, gates, mounted files, and image together, or use a newly
 tested rollback candidate.
+
+The November 16 wrapper requires the expanded contract. Install it only with a
+fresh matching gate. Rollback must restore the previous exact wrapper, old gate,
+image and overrides together; a 115-check gate cannot satisfy the new wrapper.

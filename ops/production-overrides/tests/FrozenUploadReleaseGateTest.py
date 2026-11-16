@@ -27,9 +27,7 @@ class StartupGuardTest(unittest.TestCase):
             'imageId': 'sha256:' + 'a' * 64,
             'suites': {name: {'exitCode': 0, 'checks': count,
                              'testSha256': 'b' * 64, 'logSha256': 'c' * 64}
-                       for name, count in [('frontend-network', 18), ('frontend-queue', 3),
-                                           ('backend-recovery', 12), ('bluesky-publishing', 18), ('twitter-media-reads', 17), ('assets-build', 1),
-                                           ('media-temp-permissions', 1), ('local-media-staging', 17), ('instagram-story-capture', 28)]},
+                       for name, (_, count) in validator.SUITES.items()},
             'files': {}, 'mountInventory': [{'Type': 'bind', 'RW': False,
                                             'Destination': '/usr/local/bin/peachy-start.sh'}],
         }
@@ -71,6 +69,14 @@ class StartupGuardTest(unittest.TestCase):
     def test_failed_or_incomplete_story_capture_suite_blocks(self):
         self.record['suites']['instagram-story-capture']['checks'] = 27
         self.check()
+
+    def test_comment_sync_code_cannot_be_removed_or_changed(self):
+        saved = copy.deepcopy(self.record)
+        for name in validator.TTB_SOURCE_FILES:
+            with self.subTest(name=name):
+                self.record = copy.deepcopy(saved)
+                del self.record['files'][validator.PRO + '/' + name]
+                self.check()
 
     def test_each_missing_suite_blocks(self):
         saved = copy.deepcopy(self.record)
@@ -135,7 +141,7 @@ class StartupGuardTest(unittest.TestCase):
         self.check()
 
     def test_dropped_or_changed_override_blocks(self):
-        destination = validator.PRO + '/src/Schedule.php'
+        destination = validator.PRO + '/src/CustomMounted.php'
         self.record['mountInventory'].append({'Type': 'bind', 'RW': False, 'Destination': destination})
         self.check()
         self.file(destination, 'custom schedule')

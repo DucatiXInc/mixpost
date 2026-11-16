@@ -20,6 +20,21 @@ ASSETS = APP + '/public/vendor/mixpost'
 REPO = Path(__file__).resolve().parents[2]
 TESTS = REPO / 'ops/production-overrides/tests'
 WRAPPER = REPO / 'ops/production-overrides/peachy-start.sh'
+TTB_SOURCE_FILES = (
+    'src/Support/InstagramCommentSnapshot.php',
+    'src/Support/InstagramCommentAvailability.php',
+    'src/Support/TtbInstagramCommentSync.php',
+    'src/SocialProviders/Meta/Concerns/InstagramManagesCommentImport.php',
+    'src/Jobs/Inbox/ProcessInboundWebhookJob.php',
+    'src/Actions/Inbox/IngestInboundMessage.php',
+    'src/Actions/Inbox/SendReply.php',
+    'src/Actions/Inbox/LikeMessage.php',
+    'src/Schedule.php',
+    'resources/js/Components/Inbox/MessageCard.vue',
+    'resources/js/Composables/useInboxBroadcast.js',
+    'resources/js/Composables/useReplyTarget.js',
+    'resources/js/Components/Inbox/ConversationComposer.vue',
+)
 APP_SOURCE_FILES = (
     'app/Providers/AppServiceProvider.php',
     'app/Console/Commands/CaptureInstagramStories.php',
@@ -51,7 +66,11 @@ SOURCE_FILES = (
     'src/Http/Base/Resources/MediaResource.php', 'src/Actions/Media/CopyMedia.php',
     'src/Support/VideoProbe.php', 'src/MediaConversions/MediaVideoThumbConversion.php',
 )
+SOURCE_FILES += TTB_SOURCE_FILES
 SUITES = {
+    'ttb-comment-snapshot': ('../../comment-sync/tests/SnapshotTest.php', 33),
+    'ttb-comment-broadcast': ('../../comment-sync/tests/BroadcastTest.mjs', 2),
+    'ttb-comment-reply-target': ('../../comment-sync/tests/ReplyTargetTest.mjs', 5),
     'instagram-story-capture': ('InstagramStoryCaptureTest.php', 28),
     'frontend-network': ('VideoUploadNetworkErrorsTest.mjs', 18),
     'frontend-queue': ('VideoUploadQueueRecoveryTest.mjs', 3),
@@ -357,6 +376,22 @@ def verify(image, output, baseline, candidate_overrides=None):
                 raise RuntimeError('Expected all 28 Instagram Story capture checks')
             suites['instagram-story-capture'] = {'exitCode': 0, 'checks': 28,
                 'testSha256': sha(test), 'logSha256': sha(log)}
+            print('Checking TTB comment history, broadcast and reply targeting...', flush=True)
+            for name in ('ttb-comment-snapshot', 'ttb-comment-broadcast', 'ttb-comment-reply-target'):
+                filename, count = SUITES[name]
+                test = (TESTS / filename).resolve()
+                log = output / f'{name}.log'
+                if name == 'ttb-comment-snapshot':
+                    command = ['docker', 'run', '--rm', '--network', 'none', '--read-only',
+                               '--entrypoint', 'php', *bindings,
+                               '--mount', f'type=bind,src={test},dst=/tmp/ttb-test.php,readonly',
+                               '-e', f'SYNC_SOURCE_DIR={PRO}/src/Support', image_id, '/tmp/ttb-test.php']
+                else:
+                    command = ['node', str(test)]
+                result = run(command, env=env, log=log)
+                if sum(line.startswith('PASS ') for line in result.splitlines()) != count:
+                    raise RuntimeError(f'{name}: expected all {count} checks')
+                suites[name] = {'exitCode': 0, 'checks': count, 'testSha256': sha(test), 'logSha256': sha(log)}
             for name in APP_SOURCE_FILES:
                 if APP + '/' + name in fingerprints:
                     continue

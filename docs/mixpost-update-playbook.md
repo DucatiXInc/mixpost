@@ -4,9 +4,11 @@ This supersedes the former “pull latest and recreate” procedure. Production 
 
 Start with the [docs index](README.md), [current production release snapshot](current-production-release.md)
 and [production runbook](production-runbook.md). The running release includes
-the [TTB comment availability patch](../ops/comment-sync/README.md); its source
-remains local/private. Reconcile that effective source and its tests before a
-new candidate, preserving all inbox history and Story capture.
+the [TTB comment availability patch](../ops/comment-sync/README.md). Its applicator,
+custom support classes and regression tests are versioned under `ops/comment-sync/`.
+Reconcile their effective production bytes before a new candidate, preserving all
+inbox history and Story capture. The [7.5.3 upgrade record](mixpost-v7-5-3-upgrade.md)
+records the current target and separates preparation from production acceptance.
 
 The [customization hub](customizations/README.md), [modification register](customizations/modifications.json), and [hardening checklist](customizations/update-hardening.md) are required update inputs. Run `python3 ops/scripts/check-customization-register.py`; additions and deployment delivery modes must match the source register and image recipe.
 
@@ -45,13 +47,14 @@ bundles and referenced tools remain local under the [checkpoint storage policy](
 ## 2. Obtain and compare the target
 
 1. Read the [official release notes](https://mixpost.app/releases/pro) and [upgrade guidance](https://docs.mixpost.app/pro/upgrading/). Resolve the licensed package in a disposable container using a protected Composer auth file. Do not run the vendor startup against production to obtain source: it also migrates and starts workers.
-2. Export pristine old and target sources. For every mount, compare **old upstream → custom** and **old upstream → new upstream**. `ops/upgrades/audit-overrides.py` produces the checksum inventory from exported sources and `docker inspect` mount JSON. Pass `--manifest ops/production-overrides/deployment-manifest.json --image-source CODE_ONLY_RUNNING_IMAGE_EXPORT` to include registered files baked into the image; missing image exports fail the audit. A mount-only inventory cannot preserve the local-upload helpers.
-3. Reapply the required behavior to the new source. Review successful merges too: syntactically valid old state handling can break new queue/retry contracts. Use upstream implementations where equivalent; retain stronger custom safeguards where upstream only partially covers them. For the [Bluesky publishing fixes](bluesky-publishing-resilience.md), run `python3 ops/scripts/apply-bluesky-publishing-fixes.py --source "$staged_pro"` against the staged effective source on every update. Already-applied patches are a no-op; changed upstream context blocks for review/rebase. Preserve the registered image-baked `BlueskyManagesPost.php` and the existing Helpers/publishing-job bind overrides.
-4. Record each customization as retained unchanged, rebased, replaced by equivalent upstream behavior, or inactive/historical. Add newly required classes to the manifest. Include server-only files in Git. Retire a patch only after its acceptance/failure cases pass against the exact unpatched upstream candidate and compiled assets. October 10 inspection found unsafe upload response handling again in 7.0.4: preserve/rebase the current `ops/production-patches/video-upload-*.patch` behavior and pass its recovery contract. Never revive the archived 6.2.0 image defaults.
-5. For the X analytics client overlay, compare all three Vue components against the target package and build a complete bundle with `ops/scripts/build-pro-x-analytics-assets.sh INSTALLED_PRO_TEAM_PACKAGE_DIR NEW_OUTPUT_DIR`. Keep the licensed compiled bundle outside Git. Verify its manifest references files in the same output directory and retain the Peachy landing-page image inside it.
-6. Record the exact target package version/source and lock hash. Package resolution can advance between the release announcement and the audit.
-7. Since 7.0.3, preserve the vendor X API usage controls when rebasing custom import jobs. Disabled analytics must stop all X analytics requests, limited ranges must clamp every page and skip disjoint historical cadence windows, and full analytics must retain our explicit age-tiered history. Run `TwitterUsageControlsTest.php` in the isolated Pro rehearsal alongside the existing X resource regression. Do not re-enable the retired X mentions import while incorporating upstream job arrays.
-8. Preserve the [X media read-cost controls](customizations/x-media-read-costs.md). Run `python3 ops/scripts/apply-twitter-media-cost-fixes.py --source "$staged_pro"` after rebasing the existing overrides. Timeline refreshes must have no expansions; only new/missing media metadata may use a bounded lookup. Preserve cached thumbnails/types, full text, metrics, pagination and range limits. Changed patch context blocks for rebase. Require all 17 `twitter-media-reads` checks in the frozen validator and `TwitterMediaReadIntegrationTest.php` in the restored-database rehearsal.
+2. Resolve an exact package version, keeping unrelated locked dependencies unchanged when compatible. For the 7.5.1 → 7.5.3 update the isolated command is `composer update inovector/mixpost-pro-team:7.5.3 --minimal-changes --prefer-dist --no-interaction --no-scripts`. Review the resulting lock diff; widen dependency resolution only for an actual requirement. Use an existing protected Composer credential source; never assume an old checkpoint's auth file is still local, and never bake it into the image.
+3. Export pristine old and target sources. For every mount, compare **old upstream → custom** and **old upstream → new upstream**. `ops/upgrades/audit-overrides.py` produces the checksum inventory from exported sources and `docker inspect` mount JSON. Pass `--manifest ops/production-overrides/deployment-manifest.json --image-source CODE_ONLY_RUNNING_IMAGE_EXPORT` to include registered files baked into the image; missing image exports fail the audit. A mount-only inventory cannot preserve the local-upload helpers. Compare the complete effective Pro source too, including unregistered image patches: pristine old → effective live and pristine old → pristine target. Record every customized file as retained/rebased/upstream-equivalent/conflicted. Three-way merges may assist, but review their diffs and stop for unresolved conflicts. A checksum register alone does not prove preservation.
+4. Reapply the required behavior to the new source. Review successful merges too: syntactically valid old state handling can break new queue/retry contracts. Use upstream implementations where equivalent; retain stronger custom safeguards where upstream only partially covers them. For the [Bluesky publishing fixes](bluesky-publishing-resilience.md), run `python3 ops/scripts/apply-bluesky-publishing-fixes.py --source "$staged_pro"` against the staged effective source on every update. Already-applied patches are a no-op; changed upstream context blocks for review/rebase. Preserve the registered image-baked `BlueskyManagesPost.php` and the existing Helpers/publishing-job bind overrides.
+5. Record each customization as retained unchanged, rebased, replaced by equivalent upstream behavior, or inactive/historical. Add newly required classes to the manifest. Include server-only files in Git. Retire a patch only after its acceptance/failure cases pass against the exact unpatched upstream candidate and compiled assets. October 10 inspection found unsafe upload response handling again in 7.0.4: preserve/rebase the current `ops/production-patches/video-upload-*.patch` behavior and pass its recovery contract. Never revive the archived 6.2.0 image defaults.
+6. For the X analytics client overlay, compare all three Vue components against the target package and build a complete bundle with `ops/scripts/build-pro-x-analytics-assets.sh INSTALLED_PRO_TEAM_PACKAGE_DIR NEW_OUTPUT_DIR`. Keep the licensed compiled bundle outside Git. Verify its manifest references files in the same output directory and retain the Peachy landing-page image inside it.
+7. Record the exact target package version/source and lock hash. Package resolution can advance between the release announcement and the audit.
+8. Since 7.0.3, preserve the vendor X API usage controls when rebasing custom import jobs. Disabled analytics must stop all X analytics requests, limited ranges must clamp every page and skip disjoint historical cadence windows, and full analytics must retain our explicit age-tiered history. Run `TwitterUsageControlsTest.php` in the isolated Pro rehearsal alongside the existing X resource regression. Do not re-enable the retired X mentions import while incorporating upstream job arrays.
+9. Preserve the [X media read-cost controls](customizations/x-media-read-costs.md). Run `python3 ops/scripts/apply-twitter-media-cost-fixes.py --source "$staged_pro"` after rebasing the existing overrides. Timeline refreshes must have no expansions; only new/missing media metadata may use a bounded lookup. Preserve cached thumbnails/types, full text, metrics, pagination and range limits. Changed patch context blocks for rebase. Require all 17 `twitter-media-reads` checks in the frozen validator and `TwitterMediaReadIntegrationTest.php` in the restored-database rehearsal.
 
 ## 3. Rehearse in isolation
 
@@ -76,6 +79,8 @@ ops/upgrades/build-frozen-image.sh \
 
 The builder excludes environment files, runtime caches, logs, sessions, media and Composer credentials. Inspect the resulting image for absence of secrets and check its installed package/lock hash. Use a unique tag and record its immutable image ID.
 
+Build from the same five-input source layout exported by the validator (`resources`, `src`, `package.json`, `package-lock.json`, `vite.config.js`). Repeated builds may change generated CSS or chunk names; resolve a mismatch by rebuilding and retesting the exact image. Never normalize hashes, copy individual chunks or relax the byte comparison.
+
 Run `ops/scripts/verify-frozen-upload-release.py --image EXACT_CANDIDATE --output PRIVATE_AUDIT_DIRECTORY` on the Docker host. It tests exact Pro source, rebuilds the full frontend, and issues image-bound source/asset/override evidence only when all checks pass. It has no skip option. The [gate procedure](frozen-release-gates.md) explains staging this proof alongside current/previous tested release records in the existing storage volume. A passing upload contract does not replace the isolated database/provider rehearsal above.
 
 1. Acquire `/run/lock/infra-deploy-mixpost.lockdir` to exclude dashboard deployments. Check for due publications and drain active publishing jobs. Put the app into maintenance and pause scheduler/workers for the final database checkpoint; do not clear Redis queues.
@@ -83,6 +88,15 @@ Run `ops/scripts/verify-frozen-upload-release.py --image EXACT_CANDIDATE --outpu
 3. Install reviewed host override files atomically and generate the manifest's read-only mounts. Preserve non-manifest mounts, both normal Compose files and the startup guard's read-only mount/entrypoint. Explicitly retain `MIXPOST_CORE_PATH=mixpost` and `MIXPOST_CALLBACK_PATH=mixpost`; v7 otherwise defaults to the root path. If the reviewed overrides changed after validation, rerun the upload validator against this final candidate/mount combination while maintenance and publishing pauses remain in effect. Stage its passing gate alongside the current gate. Set the app service to the exact frozen image and run `verify-frozen-upload-release.py --image EXACT_CANDIDATE --check-plan PRIVATE_AUDIT_DIRECTORY/upload-gate.json` **before replacing the running baseline**; it checks the normal two-file configuration and rejects stale image/tests, changed baseline, lost mounts, or configuration drift beyond the app image. Other infrastructure changes need a separate reviewed rehearsal/baseline. Then recreate **only** `mixpost` with `--no-deps --pull never` and a temporary third Compose file setting `entrypoint: ["sleep", "infinity"]` and `command: []`. MySQL and Redis remain running. This reviewed temporary entrypoint keeps HTTP, cron and Horizon inactive during migration; it does not waive the upload guard.
 4. Before initialization, run `docker exec mixpost-mixpost-1 /usr/local/bin/peachy-start.sh --check-release-only` and require success. Then execute only the initialization portion of the frozen startup, stopping before `service cron start` and supervisord. For the reviewed startup in this repository: `docker exec mixpost-mixpost-1 bash -o pipefail -c "sed '/^service cron start/,\$d' /usr/local/bin/start.sh | bash -e"`. This creates the environment, migrates and caches the app without starting processes. Compare `ops/upgrades/data-fingerprint.php` output before/after; it hashes selected stable user, workspace, account, post, destination and media fields without exposing their values. Review any difference before continuing. Verify runtime and mount hashes while the container is inert, then recreate the app with the normal two Compose files and guarded entrypoint to start web, cron and workers. Resume Horizon if its pause state remains in Redis. Confirm migration completion before resuming normal traffic and workers. Check exact package/source/lock identity, expected image ID, every mounted hash, Horizon, scheduler, health, login, assets and an authenticated page. Recheck Google SSO using its runbook. Confirm protected container IDs are unchanged. Run the controlled `ops/scripts/verify-upload-recovery-storage.php` probe and require completion, content verification, and cleanup; separately verify an authenticated video upload with interruption/retry and record any unavailable check explicitly.
 5. Before resuming traffic, run `MediaTemporaryPermissionsTest.php` in the running app as `www-data`; check the configured temporary path too if it differs from the default. Run the live storage probe as `www-data`, never root. Save release evidence and the rollback checkpoint. Monitor the first naturally scheduled publication; do not create an unsolicited social post or email as a test.
+
+### Preserve concurrent repairs
+
+Wait for any other Mixpost operation to release the deployment lock. Refresh the
+runtime/configuration baseline and take the rehearsal backup **after** its
+accepted change. The November 16 Facebook insights repair widened
+`mixpost_facebook_insights.value` to signed `BIGINT` and corrected existing
+history; preserve that field and data through both the upgrade and recovery.
+Never use a pre-repair database dump for this update's rollback.
 
 ### Infra dashboard limitation
 
@@ -145,3 +159,17 @@ Install the wrapper, candidate overrides and passing gate as one release. Old
 gates lack the new suite. When the frozen image stays the same, keep its old
 gate and stage the new `IMAGE_HEX-OVERRIDE_COMMIT.json` alongside it; rollback restores the
 previous wrapper, overrides and gate together.
+
+## TTB comment preservation gate
+
+The frozen gate now requires 155 checks: the existing 115 plus 33 snapshot, two
+broadcast and five reply-target checks. It fingerprints all 13 TTB source files,
+including its three custom support classes and the effective scheduler. Run the
+separate restored-MySQL `DatabaseTest.php` too; the network-disabled gate cannot
+prove database transactions. The database test compares the current restored
+history counts rather than assuming the November 13 counts remain fixed.
+
+A changed startup wrapper invalidates earlier gates. Validate the candidate with
+that wrapper, stage its gate, and install the wrapper only during the locked
+cutover. Retain the previous exact wrapper and matching old gate for rollback;
+do not install the new wrapper against an unvalidated old image.
