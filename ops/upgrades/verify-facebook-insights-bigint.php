@@ -4,7 +4,7 @@
 // --account-id=84 --metric-type=28 --from=2026-05-05 --to=2026-08-03 < expected-values.json
 declare(strict_types=1);
 
-set_exception_handler(static function (Throwable $error): void {
+$failureHandler = static function (Throwable $error): void {
     fwrite(STDERR, json_encode(['passed' => false, 'check' => 'facebook-insights-bigint',
         'error' => $error instanceof RuntimeException ? $error->getMessage() : get_class($error)], JSON_THROW_ON_ERROR).PHP_EOL);
     exit(1);
@@ -59,6 +59,8 @@ chdir($root);
 require $root.'/vendor/autoload.php';
 $app = require $root.'/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+// Laravel installs its own handler during bootstrap; keep failures nonzero.
+set_exception_handler($failureHandler);
 $db = Illuminate\Support\Facades\DB::connection();
 if ($db->getDriverName() !== 'mysql') {
     throw new RuntimeException('Acceptance requires the actual MySQL database');

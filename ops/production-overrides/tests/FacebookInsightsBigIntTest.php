@@ -3,10 +3,11 @@
 // Run only in the network-isolated restored candidate with APP_ENV=testing.
 declare(strict_types=1);
 
-set_exception_handler(static function (Throwable $error): void {
+$failureHandler = static function (Throwable $error): void {
     fwrite(STDERR, 'FAIL Facebook insights BIGINT import: '.get_class($error).': '.$error->getMessage().PHP_EOL);
     exit(1);
-});
+};
+set_exception_handler($failureHandler);
 $options = getopt('', ['app-root:', 'workspace-id:', 'account-id:']);
 foreach (['workspace-id', 'account-id'] as $key) {
     if (!isset($options[$key]) || !ctype_digit((string)$options[$key]) || (int)$options[$key] <= 0) {
@@ -18,6 +19,8 @@ chdir($root);
 require $root.'/vendor/autoload.php';
 $app = require $root.'/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+// Laravel installs its own handler during bootstrap; keep failures nonzero.
+set_exception_handler($failureHandler);
 $db = Illuminate\Support\Facades\DB::connection();
 if (!$app->environment('testing') || $db->getDriverName() !== 'mysql'
     || !preg_match('/rehearsal|isolated|test/i', $db->getDatabaseName())) {
