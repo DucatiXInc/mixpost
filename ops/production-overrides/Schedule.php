@@ -89,7 +89,10 @@ class Schedule
                     ->name("$workspace->name - mixpost:run-account-jobs:daily")
                     ->daily();
 
-                self::scheduleTwitterPostAnalytics($schedule, $workspace, 'daily-0-7-days', 7)
+                // Use disjoint rolling windows so daily refreshes do not reread the newest posts.
+                self::scheduleTwitterPostAnalytics($schedule, $workspace, 'every-3-hours-0-3-days', 3)
+                    ->cron('5 */3 * * *');
+                self::scheduleTwitterPostAnalytics($schedule, $workspace, 'daily-3-7-days', 7, 3)
                     ->dailyAt('00:05');
                 self::scheduleTwitterPostAnalytics($schedule, $workspace, 'every-2-days-8-30-days', 30, 7)
                     ->dailyAt('00:20')

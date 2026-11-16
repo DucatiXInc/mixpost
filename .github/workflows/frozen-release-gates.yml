@@ -24,6 +24,7 @@ jobs:
       - name: Verify release gate cannot accept missing tests or stale source/assets
         run: |
           bash -n ops/production-overrides/peachy-start.sh
+          php ops/production-overrides/tests/TwitterAnalyticsCadenceTest.php
           python3 ops/scripts/check-customization-register.py
           python3 ops/production-overrides/tests/CustomizationRegisterTest.py
           python3 ops/production-overrides/tests/FrozenUploadReleaseGateTest.py

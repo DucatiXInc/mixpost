@@ -325,8 +325,8 @@
       "source": "ops/production-overrides/Schedule.php",
       "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Schedule.php",
       "status": "required",
-      "documentation": "docs/customizations/local-uploads.md",
-      "acceptance": "Exact-candidate regression and isolated rehearsal; verify documented runtime behavior after cutover",
+      "documentation": "docs/customizations/x-post-refresh.md",
+      "acceptance": "TwitterAnalyticsCadenceTest.php verifies rolling disjoint 0–3/3–7/7–30/30–90/90+ day windows, eight recent refreshes per UTC day and authorized active accounts; exact-candidate gate, restored-database rehearsal and runtime schedule/startup verification; preserve local-media delivery and other provider schedules",
       "retirement": "Equivalent failure/recovery behavior must pass on pristine upstream, compiled assets, rehearsal and runtime; retain the behavior contract"
     },
     {
