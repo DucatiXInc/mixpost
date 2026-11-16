@@ -17,7 +17,7 @@ class PreservationRegisterTest(unittest.TestCase):
     def setUp(self):
         self.scratch = tempfile.TemporaryDirectory()
         self.root = Path(self.scratch.name)
-        for directory in ['ops/production-overrides', 'ops/production-patches', 'ops/production-network', 'docs/customizations']:
+        for directory in ['ops/production-overrides', 'ops/production-patches', 'ops/production-network', 'ops/comment-sync', 'docs/customizations']:
             shutil.copytree(ROOT / directory, self.root / directory)
         value = json.loads((ROOT/'docs/customizations/modifications.json').read_text())
         for entry in value['overrides']:
