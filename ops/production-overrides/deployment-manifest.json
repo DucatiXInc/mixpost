@@ -353,10 +353,10 @@
   ],
   "compatibility": {
     "package": "inovector/mixpost-pro-team",
-    "version": "7.5.1",
-    "source": "d8796e6ee4e5bc12e116e64215b1968bf7e1b0d8",
-    "baseImage": "peachy/mixpost-pro:7.5.1-candidate-v2-20261112",
-    "baseImageId": "sha256:f6e447ddf6e57440bfd32ffda5c86680fe82f4d6b033be05c47c53c37baa618f",
-    "note": "Existing Pro customizations reconciled to the running 7.5.1 source. Story application overlay 0ddd17529272f5ac216b533b3b89729a7b44a268acc1eaa6bc71da18ee9dab8f passed exact-candidate validation, restored MySQL rehearsal and approved live acceptance; see docs/customizations/instagram-story-media.md and the live frozen-release record."
+    "version": "7.5.3",
+    "source": "1f67267fc3b222ed31f3d4999e49dee1856b7e58",
+    "baseImage": "peachy/mixpost-pro:7.5.1-ttb-comment-sync-v5-20261113",
+    "baseImageId": "sha256:c0981ce600be1884bc22203299ad0f0440ee185502090bac5fa87cc17cb6b541",
+    "note": "Pro 7.5.3 deployed and accepted November 16. Complete old/live/new source comparison preserved 80 custom files and rebased two; all 66 registered sources and the expanded 155-check startup contract passed. Exact image fddbe8204282b56b3e39a752d1538f3bf19d39370304cac50113e8215d073046, restored-MySQL rehearsal, signed BIGINT/history gates and live browser/storage acceptance are recorded in docs/mixpost-v7-5-3-upgrade.md."
   }
 }

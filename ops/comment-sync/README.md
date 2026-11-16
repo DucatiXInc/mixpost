@@ -3,9 +3,12 @@
 This account-109-only patch was deployed with Dan's approval on 2026-11-13 at
 20:22:39 UTC. It adds no database migration and never prunes inbox history.
 
-Production runs `peachy/mixpost-pro:7.5.1-ttb-comment-sync-v5-20261113`, image
+The initial November 13 deployment used
+`peachy/mixpost-pro:7.5.1-ttb-comment-sync-v5-20261113`, image
 `sha256:c0981ce600be1884bc22203299ad0f0440ee185502090bac5fa87cc17cb6b541`.
-The reviewed v3 source was unchanged; the complete frontend was rebuilt on the
+The [accepted 7.5.3 update](../../docs/mixpost-v7-5-3-upgrade.md) now runs in
+production and preserves this behavior under the expanded 155-check gate.
+For the November 13 release, the reviewed v3 source was unchanged; the complete frontend was rebuilt on the
 deployment host and artifact permissions corrected before the exact frozen
 gate passed. Evidence, fresh full/row/configuration checkpoints and rollback
 instructions are in

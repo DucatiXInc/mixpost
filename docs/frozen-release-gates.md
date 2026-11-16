@@ -2,7 +2,7 @@
 
 ## Current release contract
 
-The 7.5.3 candidate requires **155 frozen behavior/build checks**; the
+Production Pro 7.5.3 requires **155 frozen behavior/build checks**; the
 [November 13 production snapshot](current-production-release.md) used 115. Preserve the complete production-matching
 validator, wrapper, tests and fingerprints on every update:
 
