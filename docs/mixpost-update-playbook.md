@@ -173,3 +173,73 @@ A changed startup wrapper invalidates earlier gates. Validate the candidate with
 that wrapper, stage its gate, and install the wrapper only during the locked
 cutover. Retain the previous exact wrapper and matching old gate for rollback;
 do not install the new wrapper against an unvalidated old image.
+
+## Facebook insights 64-bit preservation gate
+
+The accepted November 16, 2026 database repair widened
+`mixpost_facebook_insights.value` from signed `INT NOT NULL` to signed
+`BIGINT NOT NULL`. Facebook video watch-time values exceeded both the signed
+and unsigned 32-bit limits. Retrying the historical imports without widening
+the field could not recover them. The repair corrected 19 outdated daily
+values, restored one missing day, and verified all 91 affected dates against
+fresh provider data. This is a persistent database change, not an image or
+bind-mounted PHP customization.
+
+Private repair and recovery evidence is retained under
+`/root/mixpost/backups/facebook-insights-bigint-20261116/`, including the accepted
+report, exact expected values, targeted undo, migration SQL and full backup.
+That repair's `database.sql` is a **pre-repair undo backup**; it is not a valid
+post-repair upgrade baseline. The later failure-history cleanup is recorded
+separately under `/root/mixpost/backups/cleared-analytics-failures-20261116/`.
+Keep provider payloads, account-level values and database dumps private.
+
+Every subsequent update, including the 7.5.3 update, must:
+
+1. Wait for other Mixpost work to release
+   `/run/lock/infra-deploy-mixpost.lockdir`, then refresh the live baseline and
+   take a new consistent **post-repair** backup. Capture the accepted affected
+   rows and schema privately; verify the restored backup contains the widened
+   field and corrected history before testing candidate migrations.
+2. Require the same signed `BIGINT`, non-nullability and default contract
+   before and after both normal migrations and `mixpost:upgrade-database` in
+   the isolated restored candidate. Compare all 91 affected daily values with
+   the accepted private baseline. A general user/post/media fingerprint or an
+   upload gate alone does not check this table.
+3. Exercise the actual candidate's Facebook day-period import on isolated
+   MySQL with fake provider responses containing `2147483648` and `4294967296`.
+   Require exact write/read round trips and idempotent repeat imports, with
+   unrelated analytics rows unchanged. Do not call a real provider or run
+   production publishing workers for this regression check.
+4. Run the read-only schema/data gate on the inert live candidate after
+   migrations, before opening traffic or workers, and again in the final
+   acceptance checker. Missing evidence, narrowed types, changed null/default
+   behavior, missing dates or changed historical values block acceptance.
+   Never clamp large values or convert them to zero to pass the gate.
+5. Use the matching **post-repair** upgrade checkpoint for rollback and verify
+   this same contract after recovery. An image rollback does not restore a
+   schema. Never narrow the field or restore the older repair undo dump over
+   corrected history as part of an application update. Protect later writes
+   and preserve the exact rollback image, configuration and database evidence.
+
+Record actual baseline, restored-candidate, post-migration, live and rollback
+checks separately in the upgrade evidence. A preservation paragraph or an
+upstream release note is not evidence that these checks passed. Finish through
+the existing checkpoint acceptance wrapper; repair registration metadata
+without repeating a cutover or backfill.
+
+The versioned read-only checker is
+`ops/upgrades/verify-facebook-insights-bigint.php`. Pass the private baseline
+through standard input with explicit scope and date bounds:
+
+```sh
+php ops/upgrades/verify-facebook-insights-bigint.php --expected=- \
+  --workspace-id=24 --account-id=84 --metric-type=28 \
+  --from=2026-05-05 --to=2026-08-03 < /PRIVATE/expected-values.json
+```
+
+In the isolated restored candidate, run
+`php ops/production-overrides/tests/FacebookInsightsBigIntTest.php --workspace-id=24 --account-id=84`.
+It calls the real importer twice, checks both 32-bit boundaries and an unrelated
+sentinel row, then requires a full-table row hash match after rollback. Never
+run that regression against production. Final acceptance must execute the
+read-only checker again rather than trusting a saved success result.

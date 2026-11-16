@@ -54,8 +54,11 @@ $installFake = function (bool $expired = false) use (&$calls, $badId, $png): voi
         return Http::response($png);
     });
 };
+$restoredHistory = DB::table(InstagramStoryCapture::TABLE)->orderBy('id')->get()->toJson();
 DB::beginTransaction();
 try {
+    // Existing production captures must survive; isolate fixtures inside this rollback-only transaction.
+    DB::table(InstagramStoryCapture::TABLE)->delete();
     $writes = [];
     DB::listen(static function ($query) use (&$writes): void {
         if (preg_match('/^\s*(insert|update|delete|replace)\s/i', $query->sql)) $writes[] = $query->sql;
@@ -81,4 +84,4 @@ try {
     DB::rollBack();
     Storage::disk('public')->deleteDirectory('');
 }
-mysqlStoryCheck(DB::table(InstagramStoryCapture::TABLE)->count() === 0, 'MySQL rehearsal rolls back every capture fixture');
+mysqlStoryCheck(DB::table(InstagramStoryCapture::TABLE)->orderBy('id')->get()->toJson() === $restoredHistory, 'MySQL rehearsal rolls back fixtures and preserves restored Story history');

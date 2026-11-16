@@ -25,7 +25,13 @@ $account=Account::withoutWorkspace()->findOrFail(109);
 WorkspaceManager::setCurrent($account->workspace);
 $sync=new Sync;
 check(Sync::applies($account) && !Sync::applies(Account::withoutWorkspace()->findOrFail(85)), 'pilot scope is only account 109 in workspace 12 via Facebook');
-$thread=Conversation::withoutWorkspace()->where('account_id',109)->where('provider_post_id','18034794539882533')->firstOrFail();
+// Select an existing available thread so prior live deletion-test markers are not
+// intentionally cleared by this fixture's positive snapshot.
+$thread=Conversation::withoutWorkspace()->where('account_id',109)->get()->first(function($conversation){
+    $messages=Message::withoutWorkspace()->where('conversation_id',$conversation->id)->get();
+    return $messages->isNotEmpty() && $messages->every(fn($message)=>!isset($message->data[State::KEY]));
+});
+if(!$thread) throw new RuntimeException('Restored history needs an available thread for this fixture');
 $baselineConversations=Conversation::withoutWorkspace()->where('account_id',109)->count();
 $baselineMessages=Message::withoutWorkspace()->where('account_id',109)->count();
 check($baselineConversations>=10 && $baselineMessages>=2,'restored TTB history supports bounded rotation and preservation tests');
@@ -34,11 +40,11 @@ $snapshot=fn($ids,$complete=true)=>fn()=>['complete'=>$complete,'ids'=>$ids,'req
 DB::beginTransaction();
 try {
     $existing=Message::withoutWorkspace()->where('conversation_id',$thread->id)->get();
-    check($existing->count()===2,'known test thread retains its two older comments');
+    check($existing->isNotEmpty(),'restored thread supplies existing comments for transactional fixtures');
     $ids=$existing->pluck('provider_message_id')->map('strval')->all();
     $row=$existing->first()->getRawOriginal();
     unset($row['id']); $row['uuid']=(string) Illuminate\Support\Str::uuid();
-    $row['provider_message_id']='17904916827374716';
+    $row['provider_message_id']='999'.str_pad((string)random_int(0,999999999999),12,'0',STR_PAD_LEFT);
     $row['body']='Isolated deleted-test fixture';
     $row['data']=json_encode(['liked'=>true,'fixture_preserve'=>['original'=>1]]);
     $row['created_at']=gmdate('Y-m-d H:i:s',$now-7200); $row['updated_at']=$row['created_at'];
@@ -50,7 +56,7 @@ try {
     $r=$sync->reconcile($thread,$snapshot($ids),$now);
     $m=Message::withoutWorkspace()->findOrFail($fixtureId);
     check($r['complete'] && $m->data[State::KEY]['state']==='pending','first complete scan flags only the known deleted fixture as pending');
-    check(Message::withoutWorkspace()->where('account_id',109)->count()===218,'pending absence retains every history row');
+    check(Message::withoutWorkspace()->where('account_id',109)->count()===($baselineMessages+1),'pending absence retains every history row');
     $sync->reconcile($thread,$snapshot([] ,false),$now+700);
     check(!isset(Message::withoutWorkspace()->findOrFail($fixtureId)->data[State::KEY]),'failed/inaccessible fetch resets pending evidence');
     $sync->reconcile($thread,$snapshot($ids),$now+800);

@@ -39,7 +39,10 @@ try {
     coverCheck($error->status===422, 'MCP rejects covers for unrelated media with validation status 422');
 }
 coverCheck(PostFormRequest::videoThumbsOfMedia([['media_id'=>101,'thumb_id'=>102],['media_id'=>104,'thumb_id'=>105]], [101])===[['media_id'=>101,'thumb_id'=>102]], 'editor drops stale covers without losing the retained cover');
-$request=ApiPostFormRequest::create('/api/test','POST',['versions'=>[['content'=>[['media'=>[101]]]]]]);
+WorkspaceManager::setCurrent(Workspace::firstOrFail());
+$request=new class extends ApiPostFormRequest {};
+$request->initialize([], ['versions'=>[['content'=>[['media'=>[101]]]]]]);
+$request->setMethod('POST');
 $rules=$request->rules();
 $membership=array_values(array_filter($rules['versions.*.content.*.video_thumbs.*.media_id'],fn($rule)=>$rule instanceof Closure));
 coverCheck(count($membership)===1, 'REST API retains content-item cover validation');
