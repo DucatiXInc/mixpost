@@ -13,11 +13,13 @@ $client = $disk->getClient();
 class LostPutAcknowledgmentProbe
 {
     public int $writes = 0;
+    public ?string $uploadVersion = null;
     public function __construct(private object $client) {}
     public function headObject(array $request): mixed { return $this->client->headObject($request); }
     public function putObject(array $request): mixed
     {
         $result = $this->client->putObject($request);
+        $this->uploadVersion = $result['VersionId'] ?? null;
         $this->writes++;
         throw new RuntimeException('Injected acknowledgment loss');
     }
@@ -43,13 +45,20 @@ try {
     $verified = true;
 } finally {
     try {
-        $client->deleteObject($request);
+        $deleted = $client->deleteObject($request);
         try { $client->headObject($request); }
         catch (Aws\S3\Exception\S3Exception $error) { $cleaned = $error->getStatusCode() === 404; }
+        if ($probe->uploadVersion) { $client->deleteObject($request + ['VersionId' => $probe->uploadVersion]); }
+        if (isset($deleted['VersionId'])) { $client->deleteObject($request + ['VersionId' => $deleted['VersionId']]); }
+        $versions = $client->listObjectVersions(['Bucket'=>$request['Bucket'],'Prefix'=>$key,'MaxKeys'=>20]);
+        if ($versions['IsTruncated'] ?? false) throw new RuntimeException('Unexpected probe version count');
+        foreach (array_merge($versions['Versions'] ?? [], $versions['DeleteMarkers'] ?? []) as $version) {
+            if ($version['Key'] === $key) throw new RuntimeException('Probe version cleanup failed');
+        }
     } finally { if (is_file($path)) { unlink($path); } }
 }
 echo json_encode(['passed' => $verified && $cleaned, 'bytesVerified' => strlen($bytes),
     'writes' => $probe->writes, 'lostAckRecovered' => true, 'cleanupVerified' => $cleaned,
-    'mediaInserted' => false, 'totalMs' => round((hrtime(true) - $started) / 1e6, 2),
+    'mediaInserted' => false, 'ownedVersionCleanupVerified' => true, 'totalMs' => round((hrtime(true) - $started) / 1e6, 2),
     'transferSourceSha256' => hash_file('sha256', $argv[1])]).PHP_EOL;
 exit($verified && $cleaned ? 0 : 1);

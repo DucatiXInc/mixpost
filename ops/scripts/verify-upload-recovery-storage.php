@@ -91,6 +91,23 @@ try {
                 || ($objectKey && $upload->probeFilesystem->exists($objectKey))) {
                 throw new RuntimeException('Verification session or object was not cleaned up');
             }
+            // An ordinary delete leaves old bytes in a versioned bucket. This
+            // random, probe-owned key cannot contain pre-existing user versions.
+            if ($objectKey) {
+                $client = $upload->probeFilesystem->client;
+                $request = ['Bucket' => $upload->probeFilesystem->getConfig()['bucket'], 'Prefix' => $objectKey, 'MaxKeys' => 20];
+                $versions = $client->listObjectVersions($request);
+                if ($versions['IsTruncated'] ?? false) throw new RuntimeException('Unexpected probe version count');
+                foreach (array_merge($versions['Versions'] ?? [], $versions['DeleteMarkers'] ?? []) as $version) {
+                    if ($version['Key'] === $objectKey) {
+                        $client->deleteObject(['Bucket' => $request['Bucket'], 'Key' => $objectKey, 'VersionId' => $version['VersionId']]);
+                    }
+                }
+                $remaining = $client->listObjectVersions($request);
+                foreach (array_merge($remaining['Versions'] ?? [], $remaining['DeleteMarkers'] ?? []) as $version) {
+                    if ($version['Key'] === $objectKey) throw new RuntimeException('Probe version cleanup failed');
+                }
+            }
         }
     } finally {
         @unlink($path);
