@@ -24,7 +24,7 @@ if (($gate['schema'] ?? null) !== 1 || ($gate['status'] ?? null) !== 'passed'
     || !preg_match('/^sha256:[0-9a-f]{64}$/', $gate['imageId'] ?? '')) {
     blocked('unsupported or incomplete upload contract');
 }
-foreach (['frontend-network' => 18, 'frontend-queue' => 3, 'backend-recovery' => 12, 'bluesky-publishing' => 18, 'twitter-media-reads' => 17, 'assets-build' => 1, 'media-temp-permissions' => 1, 'local-media-staging' => 17, 'instagram-story-capture' => 28] as $name => $count) {
+foreach (['frontend-network' => 18, 'frontend-queue' => 3, 'backend-recovery' => 12, 'bluesky-publishing' => 18, 'twitter-media-reads' => 17, 'assets-build' => 1, 'media-temp-permissions' => 1, 'local-media-staging' => 17, 'instagram-story-capture' => 28, 'ttb-comment-snapshot' => 33, 'ttb-comment-broadcast' => 2, 'ttb-comment-reply-target' => 5] as $name => $count) {
     $suite = $gate['suites'][$name] ?? [];
     if (($suite['exitCode'] ?? null) !== 0 || ($suite['checks'] ?? 0) < $count
         || !preg_match('/^[0-9a-f]{64}$/', $suite['testSha256'] ?? '')
@@ -52,6 +52,21 @@ $required = array_map(fn($file) => $pro.$file, [
     'src/Http/Base/Requests/Workspace/Media/ChunkedUploadAbort.php',
     'src/Http/Base/Resources/MediaResource.php', 'src/Actions/Media/CopyMedia.php', 'package.json', 'package-lock.json', 'vite.config.js',
 ]);
+$required = array_merge($required, array_map(fn($file) => $pro.$file, [
+    'src/Support/InstagramCommentSnapshot.php',
+    'src/Support/InstagramCommentAvailability.php',
+    'src/Support/TtbInstagramCommentSync.php',
+    'src/SocialProviders/Meta/Concerns/InstagramManagesCommentImport.php',
+    'src/Jobs/Inbox/ProcessInboundWebhookJob.php',
+    'src/Actions/Inbox/IngestInboundMessage.php',
+    'src/Actions/Inbox/SendReply.php',
+    'src/Actions/Inbox/LikeMessage.php',
+    'src/Schedule.php',
+    'resources/js/Components/Inbox/MessageCard.vue',
+    'resources/js/Composables/useInboxBroadcast.js',
+    'resources/js/Composables/useReplyTarget.js',
+    'resources/js/Components/Inbox/ConversationComposer.vue',
+]));
 $required[] = '/var/www/html/composer.lock';
 foreach (['app/Providers/AppServiceProvider.php', 'app/Console/Commands/CaptureInstagramStories.php',
     'app/Support/InstagramStoryCapture.php', 'config/peachy-stories.php',

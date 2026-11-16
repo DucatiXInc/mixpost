@@ -31,6 +31,9 @@ class Schedule
             '--model' => [WebhookDelivery::class],
         ])->monthly();
 
+        $schedule->call(fn () => app(\Inovector\Mixpost\Support\TtbInstagramCommentSync::class)->run())
+            ->name('peachy:ttb-instagram-comment-sync')->everyFiveMinutes()->withoutOverlapping(15);
+
         $schedule->command('mixpost:prune-temporary-directory')->hourly();
         $schedule->call(fn () => \Inovector\Mixpost\Support\LocalMediaStaging::dispatchPending())
             ->name('mixpost:deliver-staged-media')->everyMinute()->withoutOverlapping();

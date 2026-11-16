@@ -304,8 +304,11 @@ class InstagramAnalytics implements ProviderAnalytics
             ->timeframe($timeframe)
             ->breakdown($breakdown)
             ->select('dimension_key', DB::raw('SUM(value) as total'))
-            ->groupBy('dimension_key')
-            ->orderByDesc('total');
+            ->groupBy('dimension_key');
+
+        $breakdown === 'age'
+            ? $query->orderBy('dimension_key')
+            : $query->orderByDesc('total');
 
         if ($limit) {
             $query->limit($limit);

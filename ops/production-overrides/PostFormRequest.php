@@ -2,10 +2,12 @@
 
 namespace Inovector\Mixpost\Http\Base\Requests\Workspace\Post;
 
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
 use Inovector\Mixpost\Actions\Post\ShiftPostSchedule;
 use Inovector\Mixpost\Actions\Post\SyncPostSchedule;
 use Inovector\Mixpost\Contracts\SocialProvider;
@@ -29,6 +31,33 @@ abstract class PostFormRequest extends FormRequest
             $this->scheduleRules(),
             $this->versionRules(),
         );
+    }
+
+    // Matches Media::isVideo(), so any video the editor offers a cover for is accepted.
+    public static function videoThumbVideoRule(): Exists
+    {
+        return WorkspaceManager::existsRule('mixpost_media', 'id')
+            ->where(fn (Builder $query) => $query->where('mime_type', 'like', 'video/%'));
+    }
+
+    public static function videoThumbImageRule(): Exists
+    {
+        return WorkspaceManager::existsRule('mixpost_media', 'id')
+            ->whereIn('mime_type', ['image/jpg', 'image/jpeg', 'image/png']);
+    }
+
+    /**
+     * The covers of videos the item no longer holds are dropped rather than rejected: posts written
+     * before the editor cleared them still carry such pairs, invisible to the person saving them.
+     */
+    public static function videoThumbsOfMedia(array $videoThumbs, array $media): array
+    {
+        $mediaIds = array_map('intval', $media);
+
+        return array_values(array_filter(
+            $videoThumbs,
+            fn ($videoThumb) => in_array((int) ($videoThumb['media_id'] ?? 0), $mediaIds, true)
+        ));
     }
 
     protected function accountRules(): array
@@ -131,12 +160,12 @@ abstract class PostFormRequest extends FormRequest
             'versions.*.content.*.video_thumbs.*.media_id' => [
                 'integer',
                 Rule::requiredIf(! empty($this->input('versions.*.content.*.video_thumbs.*'))),
-                WorkspaceManager::existsRule('mixpost_media', 'id')->whereIn('mime_type', ['video/mp4', 'video/x-m4v']),
+                self::videoThumbVideoRule(),
             ],
             'versions.*.content.*.video_thumbs.*.thumb_id' => [
                 'integer',
                 Rule::requiredIf(! empty($this->input('versions.*.content.*.video_thumbs.*'))),
-                WorkspaceManager::existsRule('mixpost_media', 'id')->whereIn('mime_type', ['image/jpg', 'image/jpeg', 'image/png']),
+                self::videoThumbImageRule(),
             ],
             'versions.*.options' => ['sometimes', 'array'],
         ];
@@ -205,7 +234,7 @@ abstract class PostFormRequest extends FormRequest
                         'body' => PostMentions::normalize($body, $mentionIds),
                         'media' => $content['media'] ?? [],
                         'url' => $content['url'] ?? null,
-                        'video_thumbs' => $content['video_thumbs'] ?? [],
+                        'video_thumbs' => self::videoThumbsOfMedia($content['video_thumbs'] ?? [], $content['media'] ?? []),
                     ];
                 })),
                 'options' => static::mapVersionOptions($version['options'] ?? []),

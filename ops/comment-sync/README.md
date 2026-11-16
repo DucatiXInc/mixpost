@@ -81,10 +81,11 @@ capture implementation or collaborative-media collector.
 
 ## Applying and checking
 
-This README records the deployed local/private patch. Its applicator and tests
-have not been shipped with these documentation changes. Obtain the reviewed
-implementation from the retained release evidence before following the commands
-below; do not recreate it from the Lite package.
+The applicator, custom support classes and tests are versioned in this directory.
+The November 16 update reconciles them against the effective production package.
+The frozen gate now fingerprints the patched source and requires the snapshot,
+broadcast and reply-target checks. The restored-database test remains a separate
+required rehearsal. Do not recreate this patch from the Lite package.
 
 Export the exact effective licensed Pro package, including all current vendor
 bind overrides, into a private local staging directory. Keep the application's
@@ -107,7 +108,7 @@ during rehearsal and, only after approval, promotion.
 Run `SnapshotTest.php` against the **baked** support classes using
 `SYNC_SOURCE_DIR=/var/www/html/vendor/inovector/mixpost-pro-team/src/Support`.
 Run `DatabaseTest.php` in a disposable app on an internal-only network, against
-a separately restored database named on host `mixpost-local-rehearsal-ttb-db`.
+a separately restored database whose host starts with `mixpost-local-rehearsal-`.
 Use fake provider HTTP, mail and broadcasting; start no publishing workers or
 scheduler. Require a successful `RESULT` line as well as process success.
 Run `BroadcastTest.mjs` and `ReplyTargetTest.mjs` with

@@ -326,7 +326,7 @@
       "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Schedule.php",
       "status": "required",
       "documentation": "docs/customizations/x-post-refresh.md",
-      "acceptance": "TwitterAnalyticsCadenceTest.php verifies rolling disjoint 0–3/3–7/7–30/30–90/90+ day windows, eight recent refreshes per UTC day and authorized active accounts; exact-candidate gate, restored-database rehearsal and runtime schedule/startup verification; preserve local-media delivery and other provider schedules",
+      "acceptance": "TwitterAnalyticsCadenceTest.php verifies rolling disjoint 0\u20133/3\u20137/7\u201330/30\u201390/90+ day windows, eight recent refreshes per UTC day and authorized active accounts; exact-candidate gate, restored-database rehearsal and runtime schedule/startup verification; preserve local-media delivery and other provider schedules",
       "retirement": "Equivalent failure/recovery behavior must pass on pristine upstream, compiled assets, rehearsal and runtime; retain the behavior contract"
     },
     {
@@ -564,7 +564,11 @@
     "ops/production-patches/bluesky-link-previews-7.1.4.patch",
     "ops/production-patches/bluesky-thread-failures-7.1.4.patch",
     "ops/production-patches/twitter-media-resources-7.1.4.patch",
-    "ops/production-patches/twitter-media-import-7.1.4.patch"
+    "ops/production-patches/twitter-media-import-7.1.4.patch",
+    "ops/comment-sync/apply.py",
+    "ops/comment-sync/src/InstagramCommentAvailability.php",
+    "ops/comment-sync/src/InstagramCommentSnapshot.php",
+    "ops/comment-sync/src/TtbInstagramCommentSync.php"
   ],
   "infrastructureFiles": [
     "ops/production-overrides/peachy-start.sh",
