@@ -3,9 +3,11 @@
 ## Current operational reference
 
 See the [docs index](README.md), [verified production snapshot](current-production-release.md)
-and [production runbook](production-runbook.md). Production runs Pro 7.5.1 with
+and [production runbook](production-runbook.md). Production runs Pro 7.5.3 with
 durable Story capture and the [TTB comment availability patch](../ops/comment-sync/README.md).
-The TTB implementation remains local/private; reconcile it before any upgrade.
+The TTB applicator, support classes and tests are now versioned. Reconcile them
+with effective production source before any upgrade. The [7.5.3 release](mixpost-v7-5-3-upgrade.md)
+preserves the signed BIGINT repair and expands the frozen gate to 155 checks.
 Current/previous recovery material must remain local; superseded evidence follows
 the [checkpoint storage and authorized maintenance policy](checkpoint-storage.md).
 

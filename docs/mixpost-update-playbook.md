@@ -232,7 +232,10 @@ The versioned read-only checker is
 through standard input with explicit scope and date bounds:
 
 ```sh
-php ops/upgrades/verify-facebook-insights-bigint.php --expected=- \
+docker cp ops/upgrades/verify-facebook-insights-bigint.php \
+  mixpost-mixpost-1:/tmp/verify-facebook-insights-bigint.php
+docker exec -i -u www-data mixpost-mixpost-1 php \
+  /tmp/verify-facebook-insights-bigint.php --expected=- \
   --workspace-id=24 --account-id=84 --metric-type=28 \
   --from=2026-05-05 --to=2026-08-03 < /PRIVATE/expected-values.json
 ```
@@ -243,3 +246,19 @@ It calls the real importer twice, checks both 32-bit boundaries and an unrelated
 sentinel row, then requires a full-table row hash match after rollback. Never
 run that regression against production. Final acceptance must execute the
 read-only checker again rather than trusting a saved success result.
+
+## Container replacement details
+
+Restore legacy upload sessions and file sessions before starting each replacement.
+If the new image lacks `storage/mixpost-media/temp`, restore the complete relative
+`mixpost-media/temp/chunked` tree into the existing `storage` parent, retaining
+ownership; copying only its contents to an absent destination fails. Preserve
+the separate persistent `storage/app` volume throughout.
+
+For startup proof, inspect actual processes with
+`docker top mixpost-mixpost-1 -eo pid,comm,args`, plus the release guard,
+`horizon:status`, scheduler, maintenance state and HTTP checks. Include `pid` in
+Docker's process format. Do not assume `supervisorctl status` is available: the
+current vendor configuration has no supervisorctl section, despite normal
+supervisord/web/Horizon processes running. A failed monitoring command must not
+be interpreted as a failed app or bypassed; verify the actual required processes.
