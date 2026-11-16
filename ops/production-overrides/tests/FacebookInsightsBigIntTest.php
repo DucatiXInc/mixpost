@@ -3,11 +3,11 @@
 // Run only in the network-isolated restored candidate with APP_ENV=testing.
 declare(strict_types=1);
 
-$failureHandler = static function (Throwable $error): void {
+$onFailure = static function (Throwable $error): void {
     fwrite(STDERR, 'FAIL Facebook insights BIGINT import: '.get_class($error).': '.$error->getMessage().PHP_EOL);
     exit(1);
 };
-set_exception_handler($failureHandler);
+set_exception_handler($onFailure);
 $options = getopt('', ['app-root:', 'workspace-id:', 'account-id:']);
 foreach (['workspace-id', 'account-id'] as $key) {
     if (!isset($options[$key]) || !ctype_digit((string)$options[$key]) || (int)$options[$key] <= 0) {
@@ -19,8 +19,7 @@ chdir($root);
 require $root.'/vendor/autoload.php';
 $app = require $root.'/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-// Laravel installs its own handler during bootstrap; keep failures nonzero.
-set_exception_handler($failureHandler);
+set_exception_handler($onFailure);
 $db = Illuminate\Support\Facades\DB::connection();
 if (!$app->environment('testing') || $db->getDriverName() !== 'mysql'
     || !preg_match('/rehearsal|isolated|test/i', $db->getDatabaseName())) {
@@ -40,7 +39,7 @@ if ((int)$account->workspace_id !== $workspace || $account->provider !== 'facebo
 $table = static fn() => $db->table('mixpost_facebook_insights');
 $fingerprint = static fn() => hash('sha256', json_encode($table()->orderBy('id')->get()->all(), JSON_THROW_ON_ERROR));
 $before = $fingerprint();
-$dates = ['2098-01-01', '2098-01-02', '2098-01-03'];
+$dates = ['2030-01-01', '2030-01-02', '2030-01-03'];
 if ($table()->where('workspace_id', $workspace)->where('account_id', $accountId)->where('type', 28)->whereIn('date', $dates)->exists()) {
     throw new RuntimeException('Synthetic dates are already occupied');
 }
@@ -48,7 +47,7 @@ $checks = 0;
 $db->beginTransaction();
 try {
     $table()->insert(['workspace_id' => $workspace, 'account_id' => $accountId, 'type' => 28,
-        'date' => $dates[2], 'value' => 123456, 'created_at' => '2098-01-03 00:00:00', 'updated_at' => '2098-01-03 00:00:00']);
+        'date' => $dates[2], 'value' => 123456, 'created_at' => '2030-01-03 00:00:00', 'updated_at' => '2030-01-03 00:00:00']);
     $unrelated = $table()->where('workspace_id', $workspace)->where('account_id', $accountId)->where('type', 28)->where('date', $dates[2])->first();
     $job = new Inovector\Mixpost\SocialProviders\Meta\Jobs\ImportFacebookInsightsDayPeriodJob($account);
     $method = new ReflectionMethod($job, 'import');
