@@ -47,7 +47,7 @@ bundles and referenced tools remain local under the [checkpoint storage policy](
 ## 2. Obtain and compare the target
 
 1. Read the [official release notes](https://mixpost.app/releases/pro) and [upgrade guidance](https://docs.mixpost.app/pro/upgrading/). Resolve the licensed package in a disposable container using a protected Composer auth file. Do not run the vendor startup against production to obtain source: it also migrates and starts workers.
-2. Resolve an exact package version, keeping unrelated locked dependencies unchanged when compatible. For the 7.5.1 → 7.5.3 update the isolated command is `composer update inovector/mixpost-pro-team:7.5.3 --minimal-changes --prefer-dist --no-interaction --no-scripts`. Review the resulting lock diff; widen dependency resolution only for an actual requirement. Use an existing protected Composer credential source; never assume an old checkpoint's auth file is still local, and never bake it into the image.
+2. Resolve an exact package version, keeping unrelated locked dependencies unchanged when compatible. For the 7.5.3 → 7.6.0 update the isolated command is `composer update inovector/mixpost-pro-team:7.6.0 --minimal-changes --prefer-dist --no-interaction --no-scripts`. Review the resulting lock diff; widen dependency resolution only for an actual requirement. Use an existing protected Composer credential source; never assume an old checkpoint's auth file is still local, and never bake it into the image.
 3. Export pristine old and target sources. For every mount, compare **old upstream → custom** and **old upstream → new upstream**. `ops/upgrades/audit-overrides.py` produces the checksum inventory from exported sources and `docker inspect` mount JSON. Pass `--manifest ops/production-overrides/deployment-manifest.json --image-source CODE_ONLY_RUNNING_IMAGE_EXPORT` to include registered files baked into the image; missing image exports fail the audit. A mount-only inventory cannot preserve the local-upload helpers. Compare the complete effective Pro source too, including unregistered image patches: pristine old → effective live and pristine old → pristine target. Record every customized file as retained/rebased/upstream-equivalent/conflicted. Three-way merges may assist, but review their diffs and stop for unresolved conflicts. A checksum register alone does not prove preservation.
 4. Reapply the required behavior to the new source. Review successful merges too: syntactically valid old state handling can break new queue/retry contracts. Use upstream implementations where equivalent; retain stronger custom safeguards where upstream only partially covers them. For the [Bluesky publishing fixes](bluesky-publishing-resilience.md), run `python3 ops/scripts/apply-bluesky-publishing-fixes.py --source "$staged_pro"` against the staged effective source on every update. Already-applied patches are a no-op; changed upstream context blocks for review/rebase. Preserve the registered image-baked `BlueskyManagesPost.php` and the existing Helpers/publishing-job bind overrides.
 5. Record each customization as retained unchanged, rebased, replaced by equivalent upstream behavior, or inactive/historical. Add newly required classes to the manifest. Include server-only files in Git. Retire a patch only after its acceptance/failure cases pass against the exact unpatched upstream candidate and compiled assets. October 10 inspection found unsafe upload response handling again in 7.0.4: preserve/rebase the current `ops/production-patches/video-upload-*.patch` behavior and pass its recovery contract. Never revive the archived 6.2.0 image defaults.
@@ -279,3 +279,24 @@ also pass `InstagramPublishingRecoveryIntegrationTest.php`, including actual
 account/version/media updates, retry persistence, publication guards and final
 summary rendering. An upstream implementation cannot supersede this safeguard
 without passing those same cases. Never bypass the suite to boot a new image.
+
+## Pro 7.6 video-cover compatibility
+
+The 7.6.0 upgrade adds nullable `mixpost_media.parent_id`, its self-reference
+with `ON DELETE SET NULL`, and `is_visible NOT NULL DEFAULT 1`. Review these as
+the only expected schema changes. Compare every existing business column before
+and after migration and separately require every original media row to remain
+visible with no parent. Keep a fresh drained database checkpoint: the previous
+image cannot reverse this migration or reconcile subsequent cover/user writes.
+
+Rebase `AccountPublishPost.php` to forward `video_thumbs` to subsequent provider
+requests, retain `timestamp_ms` (including zero) in `PostFormRequest.php`, and
+preserve its bounds/optional-cover rules alongside our content/recovery behavior.
+Keep the upstream daily `mixpost:prune-video-frames` event together with all custom
+schedules. Run `Pro760CompatibilityTest.php` on isolated restored MySQL as well
+as the existing 7.5.3 cover and publishing-recovery integration suites.
+
+Record correct package version/source/lock metadata in the frozen image itself;
+check the packaged `peachy-release.json` rather than inheriting an older parent
+image's release identity. A rebuilt metadata layer still needs its own exact
+image-bound gate and rehearsal evidence.
