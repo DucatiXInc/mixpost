@@ -1,6 +1,6 @@
 # Frozen Mixpost release gates
 
-## Automatic publishing recovery candidate
+## Automatic publishing recovery contract
 
 Candidates containing automatic Instagram recovery must add the 22-check
 `instagram-publishing-recovery` suite and its six registered source fingerprints
@@ -8,7 +8,8 @@ to the existing 155-check contract (177 checks total). The startup wrapper and
 validator enforce this together. Keep the restored-database recovery integration
 suite as an additional rehearsal requirement. See
 [the recovery contract](customizations/automatic-publishing-recovery.md).
-This requirement describes the new candidate; it does not claim deployment.
+The recovery release was deployed and accepted November 18, 2026; see the
+[current production record](current-production-release.md).
 
 ## Current release contract
 
