@@ -1,6 +1,6 @@
 # Automatic Instagram publishing recovery
 
-This change is a candidate until its exact frozen image is deployed and accepted.
+Deployed and accepted on November 18, 2026, from [PR #21](https://github.com/DucatiXInc/mixpost/pull/21). See the [current production record](../current-production-release.md) for exact image, verification and rollback evidence.
 
 Instagram and Instagram Login publishing recover from explicit, pre-container
 rejections. Recovery remains within the existing account publishing job; the
