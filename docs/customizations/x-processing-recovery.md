@@ -38,3 +38,21 @@ fakes provider transport and mail; live retry is only the explicitly authorized
 post/account. Follow the frozen release, register, rollback and final checkpoint
 acceptance procedures. Rollback retains current data and later provider IDs;
 never restore a stale dump over a live publication.
+
+## November 18 production acceptance
+
+[PR #25](https://github.com/DucatiXInc/mixpost/pull/25) was deployed in the exact
+frozen image recorded in [current production](../current-production-release.md).
+All 195 frozen checks, 37 restored-database suites, 21 scheduler checks, live
+storage probes and authenticated upload/interruption/retry/playback passed.
+The final read-only checker returned `state: accepted` through the checkpoint
+wrapper. [PR #26](https://github.com/DucatiXInc/mixpost/pull/26) records the
+installed-Pro rehearsal fixtures; both source merges passed CI.
+
+The authorized retry of post 2348 exposed X's actual HTTP 403/code 326 account
+lock for @TrentonDucati. It stopped before tweet creation, preserved content and
+surfaced the provider explanation. This is a genuine unrecoverable account-owner
+action, so terminal alerting remains appropriate. The owner must sign in and
+unlock the account before a new retry. The original failed attempt did not retain
+its status response, so the later lock response cannot prove what X returned
+in the original attempt. No successful live X publication is claimed.
