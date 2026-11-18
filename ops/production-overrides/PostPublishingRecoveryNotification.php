@@ -22,7 +22,15 @@ class PostPublishingRecoveryNotification extends Notification implements QueueWo
 
     public function via($notifiable): array { return ['mail']; }
 
-    public function shouldSend(object $notifiable, string $channel): bool { return $this->post->workspace !== null; }
+    public function shouldSend(object $notifiable, string $channel): bool
+    {
+        if (! $this->failed) { return false; }
+        $post = $this->post->fresh(['workspace']);
+        return $post !== null && $post->workspace !== null
+            && $post->isFailed() && ! $post->isScheduleProcessing()
+            && ! $post->hasPendingAccounts() && $post->publishing_runs === 0
+            && $post->hasErrors();
+    }
 
     public function toMail($notifiable): MailMessage
     {

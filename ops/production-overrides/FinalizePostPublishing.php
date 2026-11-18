@@ -98,14 +98,12 @@ class FinalizePostPublishing
             PostPublishedAll::dispatch($post);
         }
 
-        try { $this->notifyRecovery($post, false); } catch (Throwable $exception) { report($exception); }
-
         PostPublishProgress::dispatch($post);
     }
 
     private function notifyRecovery(Post $post, bool $failed): bool
     {
-        if (! $post->exists) { return false; }
+        if (! $failed || ! $post->exists) { return false; }
         $versions = $post->versions()->get();
         $recoveries = [];
         $hadRecovery = false;

@@ -27,11 +27,11 @@ destination stays publishing while it waits. Other destinations are not retried.
   retain normal failure handling. The existing container and upload safeguards
   remain required.
 
-The finalizer sends one summary to the existing `socials@ducatix.com` recipient.
-The email states which invitations were removed, which media were recovered and
-whether publishing completed. Unrecovered final failures still include their
-normal explanations. Temporary errors do not send intermediate failure emails.
-Queue acceptance and actual inbox receipt must be reported separately.
+Successful automatic recovery is silent. Only unrecovered terminal failures send
+email to `socials@ducatix.com`, with recovery details and the final explanation.
+Mail delivery rechecks the current post: active retries and recovered posts
+suppress previously queued failure notices. Recovery history remains in the post.
+This failure-only policy supersedes the original success-summary behavior.
 
 ## Update contract
 
@@ -47,7 +47,7 @@ Every exact candidate must pass the frozen `instagram-publishing-recovery` suite
 and source fingerprints. The restored-database rehearsal must exercise sequential
 collaborator removal, account/workspace isolation, durable storage retry,
 verification failures, promotion, restart recovery, terminal publication guards,
-successful finalization and summary email rendering/deduplication. Provider HTTP
+successful silent finalization, terminal email rendering/deduplication and stale queued-mail suppression. Provider HTTP
 and mail are faked in rehearsal; no live test post or test email is implied.
 
 Upstream code can replace this implementation only after passing the same

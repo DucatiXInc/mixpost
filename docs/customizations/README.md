@@ -45,7 +45,8 @@ If copying tooling to the release host, include its registered sources and docs,
 and run the register check there before issuing or promoting candidate evidence.
 
 See also [automatic publishing recovery](automatic-publishing-recovery.md), including
-required storage/collaborator recovery and summary email preservation.
+required storage/collaborator recovery and failure-only email behavior.
+See [X processing recovery](x-processing-recovery.md) for durable video-status retries.
 
 ## Required maintenance
 
