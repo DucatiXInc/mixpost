@@ -14,6 +14,7 @@ use Inovector\Mixpost\Models\Account;
 use Inovector\Mixpost\Models\Post;
 use Inovector\Mixpost\Support\PeachyPostVersionContent;
 use Inovector\Mixpost\Support\LocalMediaStaging;
+use Inovector\Mixpost\Support\InstagramPublishingRecovery;
 use Inovector\Mixpost\Support\PostContentParser;
 use Inovector\Mixpost\Support\PostRequirements;
 use Inovector\Mixpost\Support\PostRequirementViolation;
@@ -69,6 +70,9 @@ class AccountPublishPost
 
     public function __invoke(Account $account, Post $post): SocialProviderResponse
     {
+        if ($recovery = app(InstagramPublishingRecovery::class)->prepare($post, $account)) {
+            return $recovery->hasError() ? $this->fail($post, $account, $recovery->context(), $recovery) : $recovery;
+        }
         if (! $this->prepareStorage($account, $post)) {
             return new SocialProviderResponse(SocialProviderResponseStatus::ERROR, ['Media storage transfer is pending. Your upload is retained locally; retry publishing after preparation finishes.']);
         }
@@ -215,6 +219,9 @@ class AccountPublishPost
         int $itemIndex,
         ?PublishCheckpoint $checkpoint
     ): ?SocialProviderResponse {
+        if ($itemIndex === 0 && ($recovery = app(InstagramPublishingRecovery::class)->recover($post, $account, $response))) {
+            return $recovery;
+        }
         if ($response->isPending()) {
             $post->storePublishState(
                 $account,

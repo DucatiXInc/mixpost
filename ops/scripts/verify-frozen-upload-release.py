@@ -67,7 +67,9 @@ SOURCE_FILES = (
     'src/Support/VideoProbe.php', 'src/MediaConversions/MediaVideoThumbConversion.php',
 )
 SOURCE_FILES += TTB_SOURCE_FILES
+SOURCE_FILES += ('src/Support/InstagramPublishingRecovery.php', 'src/Support/PublishingMediaFallback.php', 'src/Notifications/PostPublishingRecoveryNotification.php', 'src/Actions/Post/AccountPublishPost.php', 'src/Actions/Post/FinalizePostPublishing.php', 'src/SocialProviders/Meta/Concerns/ManagesInstagramResources.php')
 SUITES = {
+    'instagram-publishing-recovery': ('InstagramPublishingRecoveryTest.php', 22),
     'ttb-comment-snapshot': ('../../comment-sync/tests/SnapshotTest.php', 33),
     'ttb-comment-broadcast': ('../../comment-sync/tests/BroadcastTest.mjs', 2),
     'ttb-comment-reply-target': ('../../comment-sync/tests/ReplyTargetTest.mjs', 5),
@@ -297,6 +299,16 @@ def verify(image, output, baseline, candidate_overrides=None):
                 if f'# pass {count}\n' not in result + '\n' or '# skipped 0' not in result:
                     raise RuntimeError(f'{name}: expected all {count} checks without skips; see {log}')
                 suites[name] = {'exitCode': 0, 'checks': count, 'testSha256': sha(TESTS / filename), 'logSha256': sha(log)}
+            print('Checking automatic Instagram recovery without external calls...', flush=True)
+            test = TESTS / 'InstagramPublishingRecoveryTest.php'
+            log = output / 'instagram-publishing-recovery.log'
+            result = run(['docker', 'run', '--rm', '--network', 'none', '--read-only',
+                          '--tmpfs', '/tmp:rw', '--entrypoint', 'php', *bindings,
+                          '--mount', f'type=bind,src={test},dst=/tmp/instagram-recovery-test.php,readonly',
+                          image_id, '/tmp/instagram-recovery-test.php'], log=log)
+            if sum(line.startswith('PASS ') for line in result.splitlines()) != 22:
+                raise RuntimeError('Expected all 22 Instagram recovery checks')
+            suites['instagram-publishing-recovery'] = {'exitCode': 0, 'checks': 22, 'testSha256': sha(test), 'logSha256': sha(log)}
             print('Checking backend recovery in an isolated candidate runtime...', flush=True)
             test = TESTS / 'ChunkedUploadRecoveryTest.php'
             log = output / 'backend-recovery.log'

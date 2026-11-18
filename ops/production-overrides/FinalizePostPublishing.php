@@ -7,6 +7,8 @@ use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Log;
 use Inovector\Mixpost\Notifications\PostPublishingFailedNotification;
+use Inovector\Mixpost\Notifications\PostPublishingRecoveryNotification;
+use Inovector\Mixpost\Support\InstagramPublishingRecovery;
 use Throwable;
 use Inovector\Mixpost\Events\Post\PostPublishedAll;
 use Inovector\Mixpost\Events\Post\PostPublishProgress;
@@ -75,9 +77,11 @@ class FinalizePostPublishing
             $post->setFailed();
 
             try {
-                Notification::route('mail', 'socials@ducatix.com')->notify(
-                    (new PostPublishingFailedNotification($post, $batchHadFailures))->delay(now()->addSeconds(10))
-                );
+                if (! $this->notifyRecovery($post, true)) {
+                    Notification::route('mail', 'socials@ducatix.com')->notify(
+                        (new PostPublishingFailedNotification($post, $batchHadFailures))->delay(now()->addSeconds(10))
+                    );
+                }
                 Log::info('mixpost.publish_failure_notification_queued', ['post_id' => $post->id]);
             } catch (Throwable $exception) {
                 report($exception);
@@ -94,6 +98,38 @@ class FinalizePostPublishing
             PostPublishedAll::dispatch($post);
         }
 
+        try { $this->notifyRecovery($post, false); } catch (Throwable $exception) { report($exception); }
+
         PostPublishProgress::dispatch($post);
+    }
+
+    private function notifyRecovery(Post $post, bool $failed): bool
+    {
+        if (! $post->exists) { return false; }
+        $versions = $post->versions()->get();
+        $recoveries = [];
+        $hadRecovery = false;
+        $outcome = hash('sha256', json_encode([$failed, $post->accounts()->get()->map(fn ($account) => [
+            $account->id, $account->pivot->status, $account->pivot->provider_post_id, $account->pivot->errors,
+        ])->all()]));
+        foreach ($versions as $version) {
+            $state = $version->options[InstagramPublishingRecovery::KEY] ?? [];
+            if (($state['post_id'] ?? null) !== $post->id || ($state['account_id'] ?? null) !== $version->account_id || empty($state['events'])) { continue; }
+            $hadRecovery = true;
+            if (($state['notified_outcome'] ?? null) !== $outcome) { $recoveries[] = $state; }
+        }
+        if (! $recoveries) { return $hadRecovery; }
+        Notification::route('mail', 'socials@ducatix.com')->notify(
+            (new PostPublishingRecoveryNotification($post, $recoveries, $failed))->delay(now()->addSeconds(10))
+        );
+        foreach ($versions as $version) {
+            $options = $version->options;
+            if (collect($recoveries)->contains('id', $options[InstagramPublishingRecovery::KEY]['id'] ?? null)) {
+                $options[InstagramPublishingRecovery::KEY]['notified_at'] = gmdate('c');
+                $options[InstagramPublishingRecovery::KEY]['notified_outcome'] = $outcome;
+                $version->options = $options; $version->save();
+            }
+        }
+        return true;
     }
 }
