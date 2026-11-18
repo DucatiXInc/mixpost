@@ -25,7 +25,7 @@ function mysqlStoryCheck(bool $ok, string $message): void {
     if (! $ok) throw new RuntimeException($message);
     echo "PASS $message\n";
 }
-if (! app()->environment('testing') || ! str_starts_with(config('database.connections.mysql.host'), 'mixpost-local-rehearsal-stories-')) {
+if (! app()->environment('testing') || ! str_starts_with(config('database.connections.mysql.host'), 'mixpost-local-rehearsal-')) {
     throw new RuntimeException('Isolated rehearsal required');
 }
 mysqlStoryCheck(Schema::hasColumns(InstagramStoryCapture::TABLE, ['workspace_id','account_id','provider_post_id','media_type','permalink','posted_at','disk','image_path','video_path','mime_type','width','height','captured_at','error']), 'MySQL migration provides the complete Annex schema');

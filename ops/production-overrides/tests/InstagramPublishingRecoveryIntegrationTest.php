@@ -200,7 +200,7 @@ try {
     contract($sent->count() === 1, 'repeated failure finalization does not duplicate recovery alert');
     $normalFailure = new Inovector\Mixpost\Notifications\PostPublishingFailedNotification($post, true);
     contract($normalFailure->shouldSend(new stdClass, 'mail'), 'ordinary terminal failure is still eligible for email');
-    $post->forceFill(['publishing_runs' => 1])->save();
+    $post->refresh()->forceFill(['publishing_runs' => 1])->save();
     contract(! $notification->shouldSend(new stdClass, 'mail') && ! $normalFailure->shouldSend(new stdClass, 'mail'), 'queued alerts are suppressed while a retry is active');
     $post->forceFill(['publishing_runs' => 0])->save();
     $post->accounts()->updateExistingPivot($account->id, ['status' => 2, 'provider_post_id' => 'fixture-recovered', 'errors' => null]);

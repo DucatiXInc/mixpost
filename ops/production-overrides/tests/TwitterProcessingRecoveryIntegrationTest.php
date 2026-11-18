@@ -38,7 +38,7 @@ class PipelineXTransport extends TwitterOAuth {
     }
 }
 class PipelineXProvider extends TwitterProvider {
-    public function getTier(): string { return 'basic'; }
+    public static function getTier(): string { return 'basic'; }
     public function buildResponse($response, ?Closure $okResult = null): SocialProviderResponse {
         return new SocialProviderResponse(SocialProviderResponseStatus::OK, $okResult ? $okResult() : []);
     }
@@ -75,6 +75,6 @@ try {
     pipelineCheck($response->isOk() && $post->fresh()->accountPublishStatus($account) === PostAccountStatus::PUBLISHED && ! $post->fresh()->hasPublishState($account), 'confirmed X processing publishes and clears the persisted checkpoint');
     (new FinalizePostPublishing)($post->fresh());
     pipelineCheck($post->fresh()->isPublished() && $transport->uploads === 1 && $transport->creates === 1, 'restarted pipeline settles with exactly one upload and one tweet');
-    Notification::assertNothingSent();
-    pipelineCheck(true, 'successful X recovery sends no email');
+    $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
+    pipelineCheck($sent->isEmpty(), 'successful X recovery sends no email');
 } finally { DB::rollBack(); }
