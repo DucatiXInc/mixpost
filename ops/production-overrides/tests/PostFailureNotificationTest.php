@@ -10,7 +10,7 @@ use Inovector\Mixpost\Actions\Post\FinalizePostPublishing;
 use Inovector\Mixpost\Facades\SocialProviderManager;
 Event::fake(); Log::swap(new Psr\Log\NullLogger);
 class NotificationPostFixture extends Post {
-    public function __construct(array $attributes=[]) {parent::__construct(array_merge(['status'=>1,'published_at'=>null,'scheduled_at'=>null],$attributes));}
+    public function __construct(array $attributes=[]) {parent::__construct(array_merge(['status'=>1,'published_at'=>null,'scheduled_at'=>null],$attributes));$this->forceFill(['publishing_runs'=>0]);}
     public bool $errorsPresent=false;
     public bool $pending=false;
     public int $runs=0;
@@ -19,6 +19,7 @@ class NotificationPostFixture extends Post {
     public function endPublishingRun(): int {return $this->runs;}
     public function hasPendingAccounts(): bool {return $this->pending;}
     public function isScheduleProcessing(): bool {return $this->state==='processing';}
+    public function isFailed(): bool {return $this->state==='failed';}
     public function setSchedulePending(): void {$this->state='pending';}
     public function setPublished(): void {$this->state='published';}
     public function setFailed(): void {$this->state='failed';}
