@@ -25,3 +25,7 @@ COPY InstagramStoryCapture.php /var/www/html/app/Support/InstagramStoryCapture.p
 COPY peachy-stories.php /var/www/html/config/peachy-stories.php
 COPY 2026_11_13_000000_create_peachy_ig_story_media.php /var/www/html/database/migrations/2026_11_13_000000_create_peachy_ig_story_media.php
 LABEL com.ducatix.mixpost.local-uploads=true
+
+COPY InstagramPublishingRecovery.php /var/www/html/vendor/inovector/mixpost-pro-team/src/Support/InstagramPublishingRecovery.php
+COPY PublishingMediaFallback.php /var/www/html/vendor/inovector/mixpost-pro-team/src/Support/PublishingMediaFallback.php
+COPY PostPublishingRecoveryNotification.php /var/www/html/vendor/inovector/mixpost-pro-team/src/Notifications/PostPublishingRecoveryNotification.php

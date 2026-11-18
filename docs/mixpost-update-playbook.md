@@ -262,3 +262,20 @@ Docker's process format. Do not assume `supervisorctl status` is available: the
 current vendor configuration has no supervisorctl section, despite normal
 supervisord/web/Horizon processes running. A failed monitoring command must not
 be interpreted as a failed app or bypassed; verify the actual required processes.
+
+## Automatic publishing recovery preservation
+
+Preserve [automatic Instagram recovery](customizations/automatic-publishing-recovery.md)
+on every update. Exact named collaborator rejections must remove only those
+invitations and continue, and definite storage download rejections must retry,
+recover identical verified media and continue without repeating live posts.
+Both must produce one final explanatory email. Keep account-specific recovery
+state, public fallback media, private receipts, original cloud objects and the
+30-minute/12-read limits across worker restarts and rollback.
+
+The frozen validator/startup guard require all 22 `instagram-publishing-recovery`
+checks and all six source fingerprints. The restored-database rehearsal must
+also pass `InstagramPublishingRecoveryIntegrationTest.php`, including actual
+account/version/media updates, retry persistence, publication guards and final
+summary rendering. An upstream implementation cannot supersede this safeguard
+without passing those same cases. Never bypass the suite to boot a new image.

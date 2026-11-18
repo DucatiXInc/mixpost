@@ -230,7 +230,7 @@ trait ManagesInstagramResources
     {
         $mediaContainerIds = Arr::get($state, 'container_ids', []);
 
-        if ($state) {
+        if ($state && empty($state['children_ready'])) {
             $settled = $this->settlePendingCarouselItem($state, $attempt);
 
             if (! $settled->isOk()) {
@@ -259,6 +259,9 @@ trait ManagesInstagramResources
             $mediaContainerResponse = $this->createInstagramMediaContainer($data, 30);
 
             if ($mediaContainerResponse->hasError()) {
+                if (($mediaContainerResponse->context()['phase'] ?? '') === 'instagram_container_creation') {
+                    $mediaContainerResponse->useContext($mediaContainerResponse->context() + ['accepted_child_ids' => $mediaContainerIds]);
+                }
                 return $mediaContainerResponse;
             }
 
@@ -275,15 +278,21 @@ trait ManagesInstagramResources
         }
 
         // Collaborators belong to the carousel itself: Instagram refuses them on its items.
-        $carouselContainer = $this->buildResponse(Http::post("{$this->resolveApiDomain()}/{$this->values['provider_id']}/media", [
+        $carouselResponse = Http::timeout(30)->post("{$this->resolveApiDomain()}/{$this->values['provider_id']}/media", [
             'access_token' => $this->getAccessToken()['access_token'],
             'media_type' => 'CAROUSEL',
             'children' => implode(',', $mediaContainerIds),
             'caption' => $text,
             ...$this->collaboratorsParameter($collaborators),
-        ]));
+        ]);
+        $carouselContainer = $this->buildResponse($carouselResponse);
 
         if ($carouselContainer->hasError()) {
+            if (! $carouselResponse->json('id')) {
+                $carouselContainer->useContext($carouselContainer->context() + [
+                    'phase' => 'instagram_container_creation', 'accepted_child_ids' => $mediaContainerIds,
+                ]);
+            }
             return $carouselContainer;
         }
 
@@ -330,6 +339,12 @@ trait ManagesInstagramResources
                 || (int) $httpResponse->json('error.code') !== -2
                 || (int) $httpResponse->json('error.error_subcode') !== 2207003
                 || $attempt === 3) {
+                if ($response->hasError() && ! $httpResponse->json('id')) {
+                    $response->useContext($response->context() + [
+                        'phase' => 'instagram_container_creation',
+                        'rejected_media_url' => $data['image_url'] ?? $data['video_url'] ?? '',
+                    ]);
+                }
                 return $response;
             }
 

@@ -552,6 +552,33 @@
       "documentation": "docs/customizations/instagram-story-media.md",
       "acceptance": "All 28 InstagramStoryCaptureTest.php checks against exact candidate; isolated restored-data migration, account-isolation and scheduler checks; approved first-run readback and public object verification",
       "retirement": "Retain Annex table/path contract and captured objects; replace only with tested equivalent independent capture behavior. Do not infer equivalence from upstream Story imports or release notes."
+    },
+    {
+      "source": "ops/production-overrides/InstagramPublishingRecovery.php",
+      "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Support/InstagramPublishingRecovery.php",
+      "delivery": "frozen-image",
+      "status": "required",
+      "documentation": "docs/customizations/automatic-publishing-recovery.md",
+      "acceptance": "Exact frozen recovery policy/public-byte suite and isolated restored-MySQL end-to-end recovery, restart, isolation and summary email checks",
+      "retirement": "Upstream must pass the identical automatic recovery, safe publication and email contract; release notes are insufficient"
+    },
+    {
+      "source": "ops/production-overrides/PublishingMediaFallback.php",
+      "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Support/PublishingMediaFallback.php",
+      "delivery": "frozen-image",
+      "status": "required",
+      "documentation": "docs/customizations/automatic-publishing-recovery.md",
+      "acceptance": "Exact frozen recovery policy/public-byte suite and isolated restored-MySQL end-to-end recovery, restart, isolation and summary email checks",
+      "retirement": "Upstream must pass the identical automatic recovery, safe publication and email contract; release notes are insufficient"
+    },
+    {
+      "source": "ops/production-overrides/PostPublishingRecoveryNotification.php",
+      "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Notifications/PostPublishingRecoveryNotification.php",
+      "delivery": "frozen-image",
+      "status": "required",
+      "documentation": "docs/customizations/automatic-publishing-recovery.md",
+      "acceptance": "Exact frozen recovery policy/public-byte suite and isolated restored-MySQL end-to-end recovery, restart, isolation and summary email checks",
+      "retirement": "Upstream must pass the identical automatic recovery, safe publication and email contract; release notes are insufficient"
     }
   ],
   "imagePatchFiles": [

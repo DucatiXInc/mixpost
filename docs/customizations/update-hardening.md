@@ -93,3 +93,13 @@ explicit and bounded; avoid a health endpoint that writes fixture objects.
 Retirement requires equivalent behavior tests on pristine upstream, the exact
 compiled result, isolated rehearsal, and live acceptance. Keep the contract after
 retiring its implementation patch. No "superseded upstream" waiver is permitted.
+
+## Preserve automatic publishing recovery
+
+Require the [storage/collaborator recovery contract](automatic-publishing-recovery.md)
+on every exact candidate. Preserve account-specific recovery state, local public
+media and private receipts, original cloud objects, caption mentions, unaffected
+invites and destinations, the bounded retry deadline, live-publication guards,
+and the final explanatory email. Run all 22 frozen recovery checks and the
+restored-database integration suite; never replace the implementation or retire
+it from release notes without proving the same failure and restart behavior.

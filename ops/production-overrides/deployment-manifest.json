@@ -349,6 +349,24 @@
       "host": "2026_11_13_000000_create_peachy_ig_story_media.php",
       "container": "/var/www/html/database/migrations/2026_11_13_000000_create_peachy_ig_story_media.php",
       "delivery": "frozen-image"
+    },
+    {
+      "source": "ops/production-overrides/InstagramPublishingRecovery.php",
+      "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Support/InstagramPublishingRecovery.php",
+      "delivery": "frozen-image",
+      "host": "InstagramPublishingRecovery.php"
+    },
+    {
+      "source": "ops/production-overrides/PublishingMediaFallback.php",
+      "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Support/PublishingMediaFallback.php",
+      "delivery": "frozen-image",
+      "host": "PublishingMediaFallback.php"
+    },
+    {
+      "source": "ops/production-overrides/PostPublishingRecoveryNotification.php",
+      "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Notifications/PostPublishingRecoveryNotification.php",
+      "delivery": "frozen-image",
+      "host": "PostPublishingRecoveryNotification.php"
     }
   ],
   "compatibility": {

@@ -44,6 +44,9 @@ rules omit `docs/`, so a default Git archive lacks the preservation records.
 If copying tooling to the release host, include its registered sources and docs,
 and run the register check there before issuing or promoting candidate evidence.
 
+See also [automatic publishing recovery](automatic-publishing-recovery.md), including
+required storage/collaborator recovery and summary email preservation.
+
 ## Required maintenance
 
 For every modification, record the problem, expected behavior, implementation
