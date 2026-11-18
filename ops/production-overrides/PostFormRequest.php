@@ -16,6 +16,7 @@ use Inovector\Mixpost\Facades\SocialProviderManager;
 use Inovector\Mixpost\Facades\WorkspaceManager;
 use Inovector\Mixpost\Models\Mention;
 use Inovector\Mixpost\Models\Post;
+use Inovector\Mixpost\Rules\VideoThumbMomentRule;
 use Inovector\Mixpost\Support\PostBody;
 use Inovector\Mixpost\Support\PostMentions;
 use Inovector\Mixpost\Support\PeachyPostVersionContent;
@@ -54,9 +55,17 @@ abstract class PostFormRequest extends FormRequest
     {
         $mediaIds = array_map('intval', $media);
 
-        return array_values(array_filter(
+        $ofMedia = array_filter(
             $videoThumbs,
             fn ($videoThumb) => in_array((int) ($videoThumb['media_id'] ?? 0), $mediaIds, true)
+        );
+
+        return array_values(array_map(
+            fn ($videoThumb) => array_filter(
+                Arr::only($videoThumb, ['media_id', 'thumb_id', 'timestamp_ms']),
+                fn ($value) => $value !== null
+            ),
+            $ofMedia
         ));
     }
 
@@ -162,11 +171,14 @@ abstract class PostFormRequest extends FormRequest
                 Rule::requiredIf(! empty($this->input('versions.*.content.*.video_thumbs.*'))),
                 self::videoThumbVideoRule(),
             ],
+            // A frame picked for a platform that takes only a moment of the video leaves no image behind.
             'versions.*.content.*.video_thumbs.*.thumb_id' => [
+                'nullable',
                 'integer',
-                Rule::requiredIf(! empty($this->input('versions.*.content.*.video_thumbs.*'))),
+                'required_without:versions.*.content.*.video_thumbs.*.timestamp_ms',
                 self::videoThumbImageRule(),
             ],
+            'versions.*.content.*.video_thumbs.*.timestamp_ms' => ['nullable', 'integer', 'min:0', new VideoThumbMomentRule],
             'versions.*.options' => ['sometimes', 'array'],
         ];
 

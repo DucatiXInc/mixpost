@@ -38,7 +38,7 @@
       "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Actions/Post/AccountPublishPost.php",
       "status": "required",
       "documentation": "docs/customizations/local-uploads.md",
-      "acceptance": "Exact-candidate regression and isolated rehearsal; verify documented runtime behavior after cutover",
+      "acceptance": "Exact-candidate regression and isolated rehearsal; verify documented runtime behavior after cutover; Pro760CompatibilityTest.php verifies cover timestamp bounds, zero timestamps, hidden frames and original-media visibility alongside existing publishing/content recovery tests",
       "retirement": "Equivalent failure/recovery behavior must pass on pristine upstream, compiled assets, rehearsal and runtime; retain the behavior contract"
     },
     {
@@ -142,7 +142,7 @@
       "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Http/Base/Requests/Workspace/Post/PostFormRequest.php",
       "status": "required",
       "documentation": "docs/mixpost-instance-alterations.md",
-      "acceptance": "Exact-candidate regression and isolated rehearsal; verify documented runtime behavior after cutover",
+      "acceptance": "Exact-candidate regression and isolated rehearsal; verify documented runtime behavior after cutover; Pro760CompatibilityTest.php verifies cover timestamp bounds, zero timestamps, hidden frames and original-media visibility alongside existing publishing/content recovery tests",
       "retirement": "Equivalent failure/recovery behavior must pass on pristine upstream, compiled assets, rehearsal and runtime; retain the behavior contract"
     },
     {
@@ -326,7 +326,7 @@
       "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Schedule.php",
       "status": "required",
       "documentation": "docs/customizations/x-post-refresh.md",
-      "acceptance": "TwitterAnalyticsCadenceTest.php verifies rolling disjoint 0\u20133/3\u20137/7\u201330/30\u201390/90+ day windows, eight recent refreshes per UTC day and authorized active accounts; exact-candidate gate, restored-database rehearsal and runtime schedule/startup verification; preserve local-media delivery and other provider schedules",
+      "acceptance": "TwitterAnalyticsCadenceTest.php verifies rolling disjoint 0–3/3–7/7–30/30–90/90+ day windows, eight recent refreshes per UTC day and authorized active accounts; exact-candidate gate, restored-database rehearsal and runtime schedule/startup verification; preserve local-media delivery and other provider schedules; preserve upstream daily mixpost:prune-video-frames on Pro 7.6 and later",
       "retirement": "Equivalent failure/recovery behavior must pass on pristine upstream, compiled assets, rehearsal and runtime; retain the behavior contract"
     },
     {

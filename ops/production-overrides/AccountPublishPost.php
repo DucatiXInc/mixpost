@@ -180,6 +180,7 @@ class AccountPublishPost
                     media: $parser->formatMedia($contentItem['media']),
                     params: array_merge($options, [
                         'url' => $contentItem['url'] ?? '',
+                        'video_thumbs' => $contentItem['video_thumbs'] ?? [],
                         'first_response' => $firstResponse,
                         'last_response' => $previousResponse,
                         'last_id' => $previousResponse->id(),
