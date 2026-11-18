@@ -7,7 +7,7 @@ and [production runbook](production-runbook.md). The running release includes
 the [TTB comment availability patch](../ops/comment-sync/README.md). Its applicator,
 custom support classes and regression tests are versioned under `ops/comment-sync/`.
 Reconcile their effective production bytes before a new candidate, preserving all
-inbox history and Story capture. The [7.5.3 upgrade record](mixpost-v7-5-3-upgrade.md)
+inbox history and Story capture. The [7.6.0 upgrade record](mixpost-v7-6-0-upgrade.md)
 records the current target and separates preparation from production acceptance.
 
 The [customization hub](customizations/README.md), [modification register](customizations/modifications.json), and [hardening checklist](customizations/update-hardening.md) are required update inputs. Run `python3 ops/scripts/check-customization-register.py`; additions and deployment delivery modes must match the source register and image recipe.
@@ -193,7 +193,7 @@ post-repair upgrade baseline. The later failure-history cleanup is recorded
 separately under `/root/mixpost/backups/cleared-analytics-failures-20261116/`.
 Keep provider payloads, account-level values and database dumps private.
 
-Every subsequent update, including the 7.5.3 update, must:
+Every subsequent update, including 7.6.0 and later, must:
 
 1. Wait for other Mixpost work to release
    `/run/lock/infra-deploy-mixpost.lockdir`, then refresh the live baseline and

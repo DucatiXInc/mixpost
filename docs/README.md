@@ -9,8 +9,9 @@ running release record and exact Pro source when planning an update.
 | Document | Use it for |
 | --- | --- |
 | [Production runbook](production-runbook.md) | Host details, read-only health checks, queues and configuration |
-| [Current production release](current-production-release.md) | November 16 accepted Pro 7.5.3 runtime and separate release evidence |
-| [7.5.3 update record](mixpost-v7-5-3-upgrade.md) | Upstream target, customization review and current update acceptance |
+| [Current production release](current-production-release.md) | November 18 accepted Pro 7.6.0 runtime and separate release evidence |
+| [7.6.0 update record](mixpost-v7-6-0-upgrade.md) | Current upstream update, preservation, migration and acceptance |
+| [7.5.3 update record](mixpost-v7-5-3-upgrade.md) | Previous upstream update and recovery history |
 | [Update playbook](mixpost-update-playbook.md) | Candidate preparation, rehearsal, checkpoint, app-only cutover and rollback |
 | [Frozen release gates](frozen-release-gates.md) | Exact-source behavior checks, complete assets and startup evidence |
 | [Instance alterations](mixpost-instance-alterations.md) | Customization intent and dated incident/repair history |
