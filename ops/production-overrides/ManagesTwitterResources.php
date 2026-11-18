@@ -36,9 +36,13 @@ trait ManagesResources
     public function publishPost(string $text, Collection $media, array $params = []): SocialProviderResponse
     {
         try {
-            $mediaResult = $this->uploadMedia($media);
+            $mediaResult = $this->uploadMedia($media, $params['resume']['state'] ?? []);
         } catch (Exception $exception) {
             return $this->response(SocialProviderResponseStatus::ERROR, [$exception->getMessage()]);
+        }
+
+        if (isset($mediaResult['pending'])) {
+            return $mediaResult['pending'];
         }
 
         if (! empty($mediaResult['errors'])) {
@@ -51,17 +55,25 @@ trait ManagesResources
         };
     }
 
-    public function uploadMedia(Collection $media): array
+    public function uploadMedia(Collection $media, array $resume = []): array
     {
         $this->connection->setApiVersion('1.1');
 
         $ids = [];
         $errors = [];
+        $uploads = ($resume['kind'] ?? null) === 'twitter_media' ? ($resume['uploads'] ?? []) : [];
 
         foreach ($media as $item) {
             $chunkUpload = $item->isVideo() || $item->isImageGif();
+            $saved = $uploads[$item->id] ?? null;
 
-            if (! $chunkUpload) {
+            if ($saved) {
+                // Poll only the accepted upload. The publishing pipeline persists this
+                // checkpoint before releasing the job, including across worker restarts.
+                $result = (object) ['media_id_string' => $saved['id']];
+            }
+
+            if (! $saved && ! $chunkUpload) {
                 $result = $this->connection->upload('media/upload', [
                     'media' => $item->isLocalAdapter() ? $item->getFullPath() : $item->getUrl(),
                     'media_type' => $item->mime_type,
@@ -70,7 +82,7 @@ trait ManagesResources
                 ]);
             }
 
-            if ($chunkUpload) {
+            if (! $saved && $chunkUpload) {
                 $uploadItem = $this->twitterMediaItemForUpload($item);
 
                 /** @var string|array $mediaFilePath * */
@@ -98,33 +110,6 @@ trait ManagesResources
                 continue;
             }
 
-            // Check status of uploaded media
-            if (isset($result->processing_info)) {
-                $processingStartedAt = microtime(true);
-                $state = $result->processing_info->state;
-                $sleepSeconds = $result->processing_info->check_after_secs;
-
-                do {
-                    sleep($sleepSeconds);
-
-                    $mediaStatus = $this->connection->mediaStatus($result->media_id);
-
-                    $state = $mediaStatus->processing_info->state;
-                    $sleepSeconds = $mediaStatus->processing_info->check_after_secs ?? 1;
-
-                } while (in_array($state, ['pending', 'in_progress']));
-
-                $this->logPublishTiming('media_processing', $item, $processingStartedAt, [
-                    'state' => $state,
-                ]);
-
-                if ($state === 'failed') {
-                    $errors[] = 'upload_failed';
-
-                    continue;
-                }
-            }
-
             $mediaId = $result->media_id_string
                 ?? (isset($result->media_id) ? (string) $result->media_id : null);
 
@@ -143,6 +128,29 @@ trait ManagesResources
                 continue;
             }
 
+            $uploads[$item->id] = $saved ?? ['id' => $mediaId, 'done' => false, 'failures' => 0];
+            if ($saved && ! $saved['done']) {
+                $checked = $this->twitterProcessingStatus($mediaId, $uploads[$item->id]);
+                if (isset($checked['error'])) {
+                    $errors[] = $checked['error'];
+                    break;
+                }
+                if (isset($checked['delay'])) {
+                    return ['pending' => $this->twitterProcessingPending($uploads, $checked['delay'])];
+                }
+            } elseif (! $saved && isset($result->processing_info)) {
+                $state = data_get($result, 'processing_info.state');
+                if ($state === 'failed') {
+                    $errors[] = $this->twitterProcessingError($result);
+                    break;
+                }
+                if ($state !== 'succeeded') {
+                    return ['pending' => $this->twitterProcessingPending($uploads,
+                        (int) data_get($result, 'processing_info.check_after_secs', 1))];
+                }
+            }
+            $uploads[$item->id]['done'] = true;
+
             if ($item->alt_text) {
                 $this->connection->mediaMetadataCreate(
                     media_id: $mediaId,
@@ -157,6 +165,55 @@ trait ManagesResources
             'ids' => $ids,
             'errors' => $errors,
         ];
+    }
+
+    protected function twitterProcessingPending(array $uploads, int $delay): SocialProviderResponse
+    {
+        return new SocialProviderResponse(SocialProviderResponseStatus::PENDING, [
+            'resume' => ['stage' => 'processing', 'state' => ['kind' => 'twitter_media', 'uploads' => $uploads]],
+        ], retryAfter: max(1, min(300, $delay)));
+    }
+
+    protected function twitterProcessingStatus(string $mediaId, array &$saved): array
+    {
+        $this->connection->setApiVersion('1.1');
+        try {
+            $result = $this->connection->mediaStatus($mediaId);
+            $code = $this->connection->getLastHttpCode();
+        } catch (Exception $exception) {
+            $result = (object) ['message' => 'X media status connection interrupted'];
+            $code = 0;
+        }
+        $state = data_get($result, 'processing_info.state');
+        if ($code === 200 && in_array($state, ['pending', 'in_progress', 'succeeded'], true)) {
+            $saved['failures'] = 0;
+            return $state === 'succeeded' ? [] : ['delay' => (int) data_get($result, 'processing_info.check_after_secs', 5)];
+        }
+        if ($code === 200 && $state === 'failed') {
+            return ['error' => $this->twitterProcessingError($result)];
+        }
+
+        $saved['failures']++;
+        $errors = $this->twitterMediaUploadErrors($result);
+        if ($errors === ['media_upload_missing_id']) {
+            $errors = ['X returned an incomplete video processing status'];
+        }
+        $retryable = $code === 0 || $code === 200 || in_array($code, [408, 429], true) || $code >= 500;
+        Log::warning('mixpost.twitter_media_status_recovery', [
+            'account_id' => $this->values['account_id'] ?? null,
+            'http_code' => $code, 'failures' => $saved['failures'],
+            'retrying' => $retryable && $saved['failures'] < 8, 'errors' => $errors,
+        ]);
+        if (! $retryable || $saved['failures'] >= 8) {
+            return ['error' => 'X video processing could not recover: '.implode('; ', $errors)];
+        }
+        return ['delay' => min(300, 15 * (2 ** ($saved['failures'] - 1)))];
+    }
+
+    private function twitterProcessingError(mixed $result): string
+    {
+        $message = data_get($result, 'processing_info.error.message');
+        return $message ? 'X video processing failed: '.$message : 'upload_failed';
     }
 
     protected function uploadTwitterChunkedMedia(Media $uploadItem, string $mediaPath): mixed

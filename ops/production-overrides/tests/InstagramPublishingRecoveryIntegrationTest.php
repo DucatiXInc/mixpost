@@ -179,16 +179,33 @@ try {
     $post->accounts()->updateExistingPivot($account->id, ['status' => 2, 'provider_post_id' => 'fixture-live-post', 'data' => json_encode(['post_published' => true]), 'errors' => null]);
     (new FinalizePostPublishing)($post);
     $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
-    contract($post->fresh()->isPublished() && $sent->count() === 1, 'recovered post settles published with one summary notification');
-    $notice = $sent->first();
-    contract($notice['notification'] instanceof PostPublishingRecoveryNotification && $notice['notifiable']->routes['mail'] === 'socials@ducatix.com', 'summary uses existing authorized recipient');
-    $mail = $notice['notification']->toMail($notice['notifiable']); $body = implode(' ', $mail->introLines);
-    contract(str_contains($body, '@private_person') && str_contains($body, '@other.person') && str_contains($body, 'No retry is needed') && str_contains($mail->actionUrl, $post->uuid), 'summary accurately names removals, completed outcome and exact post');
-    $html = (string) app(Illuminate\Mail\Markdown::class)->render($mail->markdown, $mail->data());
-    contract(str_contains($html, '@private_person') && str_contains($html, $post->uuid), 'summary email renders with recovery details and correct link');
+    contract($post->fresh()->isPublished() && $sent->isEmpty(), 'successful automatic recovery settles published without any email');
+    $oldSuccess = new PostPublishingRecoveryNotification($post, [], false);
+    contract(! $oldSuccess->shouldSend(new stdClass, 'mail'), 'previously queued recovery success mail is suppressed');
+
+    $post->accounts()->updateExistingPivot($account->id, ['status' => 3, 'provider_post_id' => null, 'data' => null, 'errors' => json_encode(['Recovery exhausted'])]);
+    $post->setFailed();
     (new FinalizePostPublishing)($post->fresh());
     $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
-    contract($sent->count() === 1, 'repeated finalization does not send duplicate summary');
+    contract($sent->count() === 1, 'unrecovered terminal failure sends one recovery explanation');
+    $notice = $sent->first(); $notification = $notice['notification'];
+    contract($notification instanceof PostPublishingRecoveryNotification && $notice['notifiable']->routes['mail'] === 'socials@ducatix.com'
+        && $notification->shouldSend($notice['notifiable'], 'mail'), 'terminal alert uses existing recipient and verifies fresh failed state');
+    $mail = $notification->toMail($notice['notifiable']); $body = implode(' ', $mail->introLines);
+    contract(str_contains($body, '@private_person') && str_contains($body, '@other.person') && str_contains($body, 'still failed') && str_contains($mail->actionUrl, $post->uuid), 'terminal email preserves recovery details and exact post link');
+    $html = (string) app(Illuminate\Mail\Markdown::class)->render($mail->markdown, $mail->data());
+    contract(str_contains($html, '@private_person') && str_contains($html, $post->uuid), 'terminal recovery email renders correctly');
+    (new FinalizePostPublishing)($post->fresh());
+    $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
+    contract($sent->count() === 1, 'repeated failure finalization does not duplicate recovery alert');
+    $normalFailure = new Inovector\Mixpost\Notifications\PostPublishingFailedNotification($post, true);
+    contract($normalFailure->shouldSend(new stdClass, 'mail'), 'ordinary terminal failure is still eligible for email');
+    $post->forceFill(['publishing_runs' => 1])->save();
+    contract(! $notification->shouldSend(new stdClass, 'mail') && ! $normalFailure->shouldSend(new stdClass, 'mail'), 'queued alerts are suppressed while a retry is active');
+    $post->forceFill(['publishing_runs' => 0])->save();
+    $post->accounts()->updateExistingPivot($account->id, ['status' => 2, 'provider_post_id' => 'fixture-recovered', 'errors' => null]);
+    $post->setPublished();
+    contract(! $notification->shouldSend(new stdClass, 'mail') && ! $normalFailure->shouldSend(new stdClass, 'mail'), 'stale terminal alerts including failed batches are suppressed after recovery');
 } finally {
     DB::rollBack();
     foreach ($ownedFiles as $path) { Storage::disk('public')->delete($path); }

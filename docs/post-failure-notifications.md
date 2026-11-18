@@ -2,6 +2,8 @@
 
 Status: active in production; runtime mounts and checksums verified at repair commit `1854fa1` on September 25, 2026. A real queued failure alert was accepted by the mail relay. Inbox receipt is separately unconfirmed.
 
+Successful recovery is silent. The queued notification rechecks fresh post state and is suppressed while a retry is active or after recovery. Recovery failures include the actions already attempted.
+
 When a publishing batch finishes with one or more failed destinations, Mixpost sends one email to `socials@ducatix.com`. The email lists every failed social account, gives a sanitized explanation from the stored provider response, and links directly to the failed post in its workspace.
 
 This applies to every provider, not only Instagram. The shared batch finalizer checks destination errors and failed publishing jobs without a provider filter. Regression verification against the running package covered all 14 registered provider types: X, Facebook Pages, Instagram, standalone Instagram, Threads, Mastodon, Pixelfed, YouTube, Google Business Profile, Pinterest, LinkedIn profiles and pages, TikTok, and Bluesky. It also covered mixed successful/failed destinations, multiple failures in one email, expired connections, disabled services, and exhausted jobs without a normal provider response. These checks use fake notifications and do not send test emails or publish content.

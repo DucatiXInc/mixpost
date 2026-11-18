@@ -26,7 +26,14 @@ class PostPublishingFailedNotification extends Notification implements QueueWork
 
     public function shouldSend(object $notifiable, string $channel): bool
     {
-        return $this->post->workspace !== null && ($this->batchHadFailures || $this->post->hasErrors());
+        // Queued mail can outlive the failure that queued it. Recheck after
+        // recovery or a manual retry instead of emailing stale failure state.
+        $post = $this->post->fresh(['workspace']);
+
+        return $post !== null && $post->workspace !== null
+            && $post->isFailed() && ! $post->isScheduleProcessing()
+            && ! $post->hasPendingAccounts() && $post->publishing_runs === 0
+            && ($this->batchHadFailures || $post->hasErrors());
     }
 
     public function via($notifiable): array
