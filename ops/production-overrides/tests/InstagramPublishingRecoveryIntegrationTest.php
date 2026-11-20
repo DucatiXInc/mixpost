@@ -105,6 +105,21 @@ try {
     contract($recovery->recover($post, $account, $unsafe) === null, 'publish endpoint errors cannot authorize a retry');
     contract($recovery->recover($post, $account, responseError($second)->useContext(['error' => $second])) === null, 'unproven endpoint errors cannot authorize a retry');
 
+    [$groupedPost, , $groupedOriginal] = fixture($account, 'fixture/'.Str::uuid().'.jpg');
+    $groupedBefore = $groupedOriginal->refresh()->getAttributes();
+    $grouped = ['code' => 210, 'error_subcode' => 2207066,
+        'error_user_msg' => 'The user private_person, other.person cannot be tagged on this media.'];
+    Http::swap(new Illuminate\Http\Client\Factory); Http::preventStrayRequests();
+    Http::fake(['*' => Http::response(['error' => $grouped], 400)]);
+    $groupedResult = (new AccountPublishPost)($account, $groupedPost);
+    $groupedVersion = $groupedPost->versions()->where('account_id', $account->id)->firstOrFail();
+    contract($groupedResult->isPending() && $groupedPost->accounts()->find($account->id)->pivot->errors === null
+        && $groupedVersion->options['instagram']['collaborators'] === ['third_person']
+        && $groupedOriginal->fresh()->getAttributes() === $groupedBefore
+        && $groupedVersion->content === $groupedOriginal->content
+        && array_column($groupedVersion->options[Recovery::KEY]['events'], 'username') === ['private_person', 'other.person'],
+        'grouped not-visible rejection retries with only unlisted invitations and records both removals');
+
     [$storagePost, $storageMedia, $storageOriginal] = fixture($account, 'fixture/'.Str::uuid().'.jpg');
     $bytes = 'verified fixture image'; contract(strlen($bytes) === 22, 'bounded fixture size recorded');
     $cloud->objects[$storageMedia->path] = $bytes;

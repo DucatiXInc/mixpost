@@ -26,8 +26,21 @@ recoveryTest('generic invalid user id cannot authorize removal', fn () => recove
 recoveryTest('wrong error code cannot authorize removal', fn () => recoveryCheck(rejected(['code' => 190]) === []));
 recoveryTest('wrong subcode cannot authorize removal', fn () => recoveryCheck(rejected(['error_subcode' => 2207013]) === []));
 recoveryTest('empty requested list cannot authorize removal', fn () => recoveryCheck(rejected([], []) === []));
-recoveryTest('explicit not-visible collaborator identified', fn () => recoveryCheck(rejected(['code' => 210, 'error_subcode' => 2207066, 'error_user_msg' => 'The user private_person cannot be tagged on this media.']) === ['private_person']));
-recoveryTest('not-visible without a named user is unsafe', fn () => recoveryCheck(rejected(['code' => 210, 'error_subcode' => 2207066, 'error_user_msg' => 'User not visible']) === []));
+recoveryTest('explicit not-visible collaborators identified', function () {
+    $error = ['code' => 210, 'error_subcode' => 2207066];
+    recoveryCheck(rejected($error + ['error_user_msg' => 'The user private_person cannot be tagged on this media.']) === ['private_person']);
+    recoveryCheck(rejected($error + ['error_user_msg' => 'The user private_person, other.person cannot be tagged on this media.'],
+        ['private_person', 'other.person', 'third_person']) === ['private_person', 'other.person']);
+    recoveryCheck(rejected($error + ['error_user_msg' => 'The user @Private_Person,@Other.Person, PRIVATE_PERSON cannot be tagged on this media.']) === ['private_person', 'other.person']);
+});
+recoveryTest('ambiguous not-visible messages cannot remove collaborators', function () {
+    $error = ['code' => 210, 'error_subcode' => 2207066];
+    foreach (['User not visible', 'The user private_person, unknown cannot be tagged on this media.',
+        'The user private_person,, other.person cannot be tagged on this media.',
+        'The user private_person and other.person cannot be tagged on this media.'] as $message) {
+        recoveryCheck(rejected($error + ['error_user_msg' => $message]) === []);
+    }
+});
 recoveryTest('usernames are matched as whole values', fn () => recoveryCheck(rejected([], ['private_person_extra']) === []));
 recoveryTest('media fetch rejection recognized', fn () => recoveryCheck(Recovery::storageError(['code' => 9004, 'error_subcode' => 2207052])));
 recoveryTest('bounded existing timeout recognized', fn () => recoveryCheck(Recovery::storageError(['code' => -2, 'error_subcode' => 2207003])));
