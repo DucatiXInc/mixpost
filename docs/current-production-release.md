@@ -1,5 +1,38 @@
 # Current production release
 
+## November 20 grouped Instagram recovery update
+
+Mixpost Pro **7.7.0** reopened with the grouped collaborator recovery fix at
+9:28 a.m. CST on November 20, 2026 (`2026-11-20T15:28:00Z`). The package source
+and Composer lock match the November 19 release. The update replaces the
+image-baked Instagram recovery helper, with the same startup guard and 53 mounts.
+
+| Item | Verified value |
+| --- | --- |
+| Frozen image | `peachy/mixpost-pro:7.7.0-a57ca75-instagram-recovery-20261120` |
+| Immutable image ID | `sha256:7f6623f9a656bbb3a4e8918f1f79e19961743642dbecc7ae045ae38717e592d3` |
+| Customization source | `a57ca751eb41bf5bea60d191f076903b75649585` |
+| Source merge | [PR #31](https://github.com/DucatiXInc/mixpost/pull/31), `d073d55def3ddbe030407e4e6fb95cd284c85ee2` |
+| Evidence and rollback | `/root/mixpost/backups/grouped-instagram-recovery-20261120/` |
+| Previous immutable ID | `sha256:381309e428fbac64e4544744abc0e3e806e003cf724635cbaa3083980af388bc` |
+
+| Stage | Result |
+| --- | --- |
+| Source and CI | The frozen guard, frontend build and PHP/Laravel workflows passed on the source merge. |
+| Frozen candidate | All 195 checks passed, the rebuilt frontend matched the image assets, and all 69 registered sources matched the release gate. |
+| Isolated rehearsal | All 38 suites and 21 scheduler checks passed. A simulated grouped Meta rejection verified a retry with only the named invites removed and both removals recorded. |
+| Cutover | Recreated only the app. The schema, 92 business-table fingerprints, protected services, configuration and mounts passed verification. |
+| Production | The exact grouped response matched the running recovery code. Health, login, workers and served assets passed. Both controlled storage probes verified exact bytes and cleanup. |
+| Authenticated browser | Confirmed post #2400's published status. Resumed an interrupted 12 MiB upload in the same session, played the recovered clip and verified cleanup of its media row, session and three stored objects. |
+| Final acceptance | The read-only checker passed 40 checks, including all 318 served asset hashes, and the checkpoint wrapper recorded `state: accepted` at `2026-11-20T15:31:07Z`. |
+
+Use the release's `cutover/ROLLBACK.txt` and `cutover/drained/` snapshot with
+the verified exact image archive. The drained dump is for disaster recovery.
+Retain the live database and provider IDs for a code rollback because the schema
+stayed the same.
+
+## November 19 Pro 7.7.0 baseline
+
 Mixpost Pro **7.7.0** reopened in production on November 19, 2026, at
 10:57 PM CST (`2026-11-20T04:57:10Z`). The final read-only checker passed 38
 checks at `2026-11-20T05:01:54Z` and the checkpoint wrapper recorded
