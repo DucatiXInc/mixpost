@@ -282,12 +282,13 @@ account/version/media updates, retry persistence, publication guards and final
 summary rendering. An upstream implementation cannot supersede this safeguard
 without passing those same cases. Never bypass the suite to boot a new image.
 
-For [Pro 7.7.0](https://mixpost.app/releases/pro), bring the collaborator messaging
-overlap to Dan in Section 2. The new username-format message comes from
+For [Pro 7.7.0](https://mixpost.app/releases/pro), Dan approved adopting the clearer
+REST API and MCP username-format message and retaining automatic Instagram recovery.
+The new message comes from
 `InstagramPostOptions.php` when a post is saved. The mounted `PostFormRequest.php`
 delegates to those rules. Our recovery handles Meta's rejection during publishing.
-If approved to combine them, verify malformed usernames return the new message
-through both REST and MCP, and run the existing publish-time recovery gates.
+Verify malformed usernames return the new message through both REST and MCP, and
+run the existing publish-time recovery gates before deploying.
 
 ## Pro 7.6 video-cover compatibility
 
