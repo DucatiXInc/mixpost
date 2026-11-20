@@ -4,11 +4,13 @@ namespace Inovector\Mixpost\Notifications;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Queue\SerializesModels;
 use Inovector\Mixpost\Concerns\Mail;
 use Inovector\Mixpost\Contracts\QueueWorkspaceAware;
+use Inovector\Mixpost\Enums\PostAccountStatus;
 use Inovector\Mixpost\Models\Post;
 use Inovector\Mixpost\Support\PostFailureExplanation;
 
@@ -24,10 +26,18 @@ class PostPublishingRecoveryNotification extends Notification implements QueueWo
 
     public function shouldSend(object $notifiable, string $channel): bool
     {
-        if (! $this->failed) { return false; }
         $post = $this->post->fresh(['workspace']);
-        return $post !== null && $post->workspace !== null
-            && $post->isFailed() && ! $post->isScheduleProcessing()
+        if (! $post?->workspace) {
+            return false;
+        }
+
+        if (! $this->failed) {
+            return $notifiable instanceof Model
+                && $post->workspace->users()->whereKey($notifiable->getKey())->exists()
+                && $this->publishedRecoveries($post) !== [];
+        }
+
+        return $post->isFailed() && ! $post->isScheduleProcessing()
             && ! $post->hasPendingAccounts() && $post->publishing_runs === 0
             && $post->hasErrors();
     }
@@ -36,10 +46,10 @@ class PostPublishingRecoveryNotification extends Notification implements QueueWo
     {
         $post = $this->post->fresh(['accounts', 'workspace']) ?? $this->post;
         $message = $this->mailNotificationMessage()
-            ->subject(($this->failed ? 'Social post needs attention after recovery' : 'Social post published after automatic recovery').' ['.substr($post->uuid, 0, 8).']')
-            ->greeting($this->failed ? 'Automatic recovery needs attention' : 'Your post published after automatic recovery')
-            ->line($this->failed ? 'Mixpost attempted automatic recovery, but at least one destination still failed.' : 'Mixpost recovered automatically and completed publishing. No retry is needed.');
-        foreach ($this->recoveries as $recovery) {
+            ->subject(($this->failed ? 'Social post needs attention after recovery' : 'Instagram published after removing a collaborator').' ['.substr($post->uuid, 0, 8).']')
+            ->greeting($this->failed ? 'Automatic recovery needs attention' : 'Instagram collaborator removal')
+            ->line($this->failed ? 'Mixpost attempted automatic recovery, but at least one destination still failed.' : 'Mixpost retried the Instagram destination and published successfully after removing the invitations listed below.');
+        foreach ($this->failed ? $this->recoveries : $this->publishedRecoveries($post) as $recovery) {
             $account = $post->accounts->firstWhere('id', $recovery['account_id']);
             $identity = $account ? $account->providerName().' — '.($account->name ?: $account->username) : 'Social account';
             foreach ($recovery['events'] as $event) {
@@ -52,11 +62,26 @@ class PostPublishingRecoveryNotification extends Notification implements QueueWo
                 }
             }
         }
-        foreach ($post->accounts as $account) {
-            if ($account->pivot->errors !== null) {
-                $message->line($account->providerName().' — '.($account->name ?: $account->username).': '.PostFailureExplanation::from($account->pivot->errors));
+        if ($this->failed) {
+            foreach ($post->accounts as $account) {
+                if ($account->pivot->errors !== null) {
+                    $message->line($account->providerName().' — '.($account->name ?: $account->username).': '.PostFailureExplanation::from($account->pivot->errors));
+                }
             }
         }
         return $message->action('View post', url(route('mixpost.posts.edit', ['workspace' => $post->workspace->uuid, 'post' => $post->uuid], false)));
+    }
+
+    private function publishedRecoveries(Post $post): array
+    {
+        $accounts = $post->accounts->keyBy('id');
+
+        return array_filter($this->recoveries, function (array $recovery) use ($accounts): bool {
+            $pivot = $accounts->get($recovery['account_id'])?->pivot;
+
+            return isset($recovery['published_id']) && $pivot
+                && $pivot->status === PostAccountStatus::PUBLISHED->value
+                && $pivot->provider_post_id === $recovery['published_id'];
+        });
     }
 }

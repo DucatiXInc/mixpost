@@ -22,7 +22,7 @@
       "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/Notifications/PostPublishingFailedNotification.php",
       "status": "required",
       "documentation": "docs/mixpost-instance-alterations.md",
-      "acceptance": "Restored MySQL PostFailureNotificationTest.php and InstagramPublishingRecoveryIntegrationTest.php: no success/recovery-in-progress email, one exhausted recovery failure, fresh terminal-state checks, stale queued-mail suppression, rendering and deduplication",
+      "acceptance": "Restored MySQL PostFailureNotificationTest.php and InstagramPublishingRecoveryIntegrationTest.php: notify only current workspace members after successful Instagram collaborator removal, silent storage-only recovery, one exhausted recovery failure, fresh state checks, stale queued-mail suppression, rendering and deduplication",
       "retirement": "Equivalent failure/recovery behavior must pass on pristine upstream, compiled assets, rehearsal and runtime; retain the behavior contract"
     },
     {

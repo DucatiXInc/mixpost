@@ -270,10 +270,13 @@ Preserve [automatic Instagram recovery](customizations/automatic-publishing-reco
 on every update. Exact named collaborator rejections must remove only those
 invitations and continue, and definite storage download rejections must retry,
 recover identical verified media and continue without repeating live posts.
-Successful recovery is silent. Send one explanatory email for an unrecovered
-terminal failure and suppress stale alerts after recovery. Keep account-specific
-recovery state, public fallback media, private receipts, original cloud objects
-and the 30-minute/12-read limits across worker restarts and rollback.
+When an Instagram destination publishes after automatic collaborator removal,
+email every user in its workspace with the removed handles and a link to the
+post. Successful storage-only recovery is silent. Send one explanatory email for
+an unrecovered terminal failure and suppress stale alerts after recovery. Keep
+account-specific recovery state, public fallback media, private receipts,
+original cloud objects and the 30-minute/12-read limits across worker restarts
+and rollback.
 
 The frozen validator/startup guard require all 22 `instagram-publishing-recovery`
 checks and all six source fingerprints. The restored-database rehearsal must
@@ -287,8 +290,9 @@ REST API and MCP username-format message and retaining automatic Instagram recov
 The new message comes from
 `InstagramPostOptions.php` when a post is saved. The mounted `PostFormRequest.php`
 delegates to those rules. Our recovery handles Meta's rejection during publishing.
-Verify malformed usernames return the new message through both REST and MCP, and
-run the existing publish-time recovery gates before deploying.
+Run `Pro770CollaboratorValidationTest.php` to verify the message through REST and
+MCP. Run the publish-time recovery gates and verify the workspace member email
+before deploying.
 
 ## Pro 7.6 video-cover compatibility
 

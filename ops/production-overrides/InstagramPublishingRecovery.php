@@ -68,7 +68,9 @@ class InstagramPublishingRecovery
                 }
                 $options[$account->provider]['collaborators'] = array_values(array_filter($current,
                     fn ($name) => ! in_array(strtolower(ltrim($name, '@')), $rejected, true)));
-                foreach ($rejected as $name) { $state['events'][] = ['kind' => 'collaborator_removed', 'username' => $name]; }
+                foreach ($rejected as $name) {
+                    $state['events'][] = ['kind' => 'collaborator_removed', 'username' => $name, 'notify_workspace' => true];
+                }
             });
             $this->retainChildren($post, $account, $context);
             return $this->waiting(2);
