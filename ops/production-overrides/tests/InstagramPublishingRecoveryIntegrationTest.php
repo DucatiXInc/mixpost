@@ -176,14 +176,58 @@ try {
         && $conversionMedia->getConversion('thumb')['path'] === $thumbSource, 'only rejected optimized conversion moves; original and thumbnail are preserved');
 
     // Finalization and notification operate on real account/version rows; delivery is faked.
+    $newUser = function () use ($user) {
+        $fixture = $user->newInstance();
+        $fixture->forceFill([
+            'name' => 'Recovery email fixture', 'email' => Str::uuid().'@rehearsal.invalid',
+            'password' => password_hash(Str::random(32), PASSWORD_BCRYPT),
+        ])->save();
+        return $fixture;
+    };
+    $viewer = $newUser();
+    $outsider = $newUser();
+    $workspace->attachUser($viewer->getKey(), Inovector\Mixpost\Enums\WorkspaceUserRole::VIEWER);
+    $member = $workspace->users()->where('users.id', '!=', $viewer->getKey())->firstOrFail();
+    $members = $workspace->users()->pluck('users.id')->sort()->values()->all();
+    $other = Account::whereKeyNot($account->id)->firstOrFail();
+    $post->accounts()->attach($other->id, ['status' => 0]);
+    $post->accounts()->updateExistingPivot($account->id, ['status' => 1, 'provider_post_id' => null]);
+    (new FinalizePostPublishing)($post);
+    $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
+    contract($sent->isEmpty(), 'a collaborator retry still in progress sends no email');
+
     $post->accounts()->updateExistingPivot($account->id, ['status' => 2, 'provider_post_id' => 'fixture-live-post', 'data' => json_encode(['post_published' => true]), 'errors' => null]);
     (new FinalizePostPublishing)($post);
     $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
-    contract($post->fresh()->isPublished() && $sent->isEmpty(), 'successful automatic recovery settles published without any email');
-    $oldSuccess = new PostPublishingRecoveryNotification($post, [], false);
-    contract(! $oldSuccess->shouldSend(new stdClass, 'mail'), 'previously queued recovery success mail is suppressed');
+    contract($post->fresh()->hasPendingAccounts() && $sent->pluck('notifiable')->map(fn ($recipient) => $recipient->getKey())->sort()->values()->all() === $members,
+        'published Instagram recovery emails every workspace user once even when another destination is pending');
+    $notice = $sent->first()['notification'];
+    $mail = $notice->toMail($member);
+    $body = implode(' ', $mail->introLines);
+    contract($notice instanceof PostPublishingRecoveryNotification && $notice->shouldSend($member, 'mail')
+        && $notice->shouldSend($viewer, 'mail') && ! $notice->shouldSend($outsider, 'mail'),
+        'success notice includes viewers and excludes outsiders');
+    contract(str_contains($body, '@private_person') && str_contains($body, '@other.person')
+        && ! str_contains($body, '@third_person') && str_contains($body, 'published successfully')
+        && str_contains($mail->actionUrl, $post->uuid), 'success email names only removed collaborators and links to the post');
+    $html = (string) app(Illuminate\Mail\Markdown::class)->render($mail->markdown, $mail->data());
+    contract(str_contains($html, '@other.person') && str_contains($html, $post->uuid), 'collaborator email renders correctly');
+    $workspace->users()->detach($viewer->getKey());
+    contract(! $notice->shouldSend($viewer, 'mail'), 'queued success notice is suppressed when a user leaves the workspace');
+    $post->accounts()->detach($other->id);
+    (new FinalizePostPublishing)($post->fresh());
+    $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
+    contract($sent->count() === count($members), 'repeated finalization does not resend the collaborator notice');
+    $oldSuccess = new PostPublishingRecoveryNotification($post, [$recovery->state($post, $account)], false);
+    contract(! $oldSuccess->shouldSend($member, 'mail'), 'legacy success mail without a published destination is suppressed');
+
+    Notification::fake();
+    $storagePost->accounts()->updateExistingPivot($account->id, ['status' => 2, 'provider_post_id' => 'fixture-storage-published', 'errors' => null]);
+    (new FinalizePostPublishing)($storagePost);
+    contract(Notification::getFacadeRoot()->sentNotifications() === [], 'successful storage-only recovery sends no email');
 
     $post->accounts()->updateExistingPivot($account->id, ['status' => 3, 'provider_post_id' => null, 'data' => null, 'errors' => json_encode(['Recovery exhausted'])]);
+    contract(! $notice->shouldSend($member, 'mail'), 'queued success notice requires the matching published destination');
     $post->setFailed();
     (new FinalizePostPublishing)($post->fresh());
     $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));

@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Bus\Batch;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Log;
+use Inovector\Mixpost\Enums\PostAccountStatus;
 use Inovector\Mixpost\Notifications\PostPublishingFailedNotification;
 use Inovector\Mixpost\Notifications\PostPublishingRecoveryNotification;
 use Inovector\Mixpost\Support\InstagramPublishingRecovery;
@@ -62,6 +63,12 @@ class FinalizePostPublishing
 
     protected function settle(Post $post, bool $batchHadFailures = false): void
     {
+        try {
+            $this->notifyCollaboratorRemovals($post);
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
         // A staggered post comes back here after every departure. Settling it on the first one
         // would publish the rest of its accounts never: the runner only looks at posts that are
         // still scheduled.
@@ -99,6 +106,59 @@ class FinalizePostPublishing
         }
 
         PostPublishProgress::dispatch($post);
+    }
+
+    private function notifyCollaboratorRemovals(Post $post): void
+    {
+        $recoveries = [];
+        $versions = $post->versions()->whereNotNull('options->'.InstagramPublishingRecovery::KEY)->get();
+        if ($versions->isEmpty()) {
+            return;
+        }
+
+        $published = $post->accounts()
+            ->wherePivot('status', PostAccountStatus::PUBLISHED->value)
+            ->wherePivotNotNull('provider_post_id')
+            ->get()->keyBy('id');
+
+        foreach ($versions as $version) {
+            $state = $version->options[InstagramPublishingRecovery::KEY] ?? [];
+            $providerId = $published->get($version->account_id)?->pivot->provider_post_id;
+
+            if (! $providerId || ($state['post_id'] ?? null) !== $post->id
+                || ($state['account_id'] ?? null) !== $version->account_id
+                || ($state['collaborator_notice_queued_for'] ?? null) === $providerId) {
+                continue;
+            }
+
+            $events = array_values(array_filter($state['events'] ?? [], fn (array $event): bool =>
+                $event['kind'] === 'collaborator_removed' && ($event['notify_workspace'] ?? false)));
+
+            if ($events) {
+                $recoveries[$version->id] = [
+                    'account_id' => $version->account_id,
+                    'published_id' => $providerId,
+                    'events' => $events,
+                ];
+            }
+        }
+
+        if (! $recoveries || ! $post->workspace) {
+            return;
+        }
+
+        Notification::send(
+            $post->workspace->users()->get(),
+            (new PostPublishingRecoveryNotification($post, array_values($recoveries), false))->delay(now()->addSeconds(10))
+        );
+
+        foreach ($recoveries as $versionId => $recovery) {
+            $version = $versions->find($versionId);
+            $options = $version->options;
+            $options[InstagramPublishingRecovery::KEY]['collaborator_notice_queued_for'] = $recovery['published_id'];
+            $version->options = $options;
+            $version->save();
+        }
     }
 
     private function notifyRecovery(Post $post, bool $failed): bool

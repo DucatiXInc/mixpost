@@ -25,7 +25,7 @@ This recovery does not replay tweet creation after a lost create response. It
 only retries status reads before publication. The existing pipeline preserves
 published IDs and thread checkpoints.
 
-Successful automatic recovery sends no email across providers. Final unrecovered
+Successful automatic X recovery sends no email. Final unrecovered
 failures still alert the existing recipient. Both ordinary and recovery mail
 recheck fresh post state at delivery and suppress stale alerts after recovery or
 while another publishing run is active.
