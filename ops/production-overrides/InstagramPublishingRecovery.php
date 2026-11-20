@@ -106,8 +106,8 @@ class InstagramPublishingRecovery
             && preg_match('/\AThe following user\(s\) cannot be accessed:\s*([@a-zA-Z0-9_., ]+)\z/', $message, $matches)) {
             $names = preg_split('/[ ,]+/', trim($matches[1]));
         } elseif ((int) ($error['code'] ?? 0) === 210 && (int) ($error['error_subcode'] ?? 0) === 2207066
-            && preg_match('/\AThe user (@?[a-zA-Z0-9_.]+) cannot be tagged on this media\.\z/', $message, $matches)) {
-            $names = [$matches[1]];
+            && preg_match('/\AThe user (@?[a-zA-Z0-9_.]+(?: *, *@?[a-zA-Z0-9_.]+)*) cannot be tagged on this media\.\z/', $message, $matches)) {
+            $names = preg_split('/ *, */', $matches[1]);
         }
         $names = array_values(array_unique(array_map(fn ($name) => strtolower(ltrim($name, '@')), $names)));
         $requested = array_map(fn ($name) => strtolower(ltrim($name, '@')), $requested);

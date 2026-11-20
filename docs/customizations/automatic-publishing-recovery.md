@@ -7,10 +7,12 @@ rejections. Recovery remains within the existing account publishing job; the
 destination stays publishing while it waits. Other destinations are not retried.
 
 * Code 110/subcode 2207018 or code 210/subcode 2207066 may remove only the exact
-  requested usernames named in Meta's user-facing response. Generic errors and
-  unknown usernames never authorize removal. Changes live in an account-specific
-  version; caption mentions, media, original version, other invites and other
-  destinations are preserved. A later named rejection can remove another invite.
+  requested usernames named in Meta's user-facing response, including when Meta
+  returns multiple usernames in a comma-separated list. Generic errors and lists
+  containing an unknown username never authorize removal. Changes live in an
+  account-specific version. Mixpost preserves caption mentions, media, the
+  original version, other invites and other destinations. A later named
+  rejection can remove another invite.
 * Code 9004/subcode 2207052 or -2/subcode 2207003 from container creation may recover
   the rejected cloud asset. The URL must match a selected media original or
   conversion, in the same workspace, on a configured S3 disk. Recovery uses the
