@@ -132,6 +132,13 @@ class StartupGuardTest(unittest.TestCase):
         self.record['suites']['twitter-media-reads']['checks'] = 16
         self.check()
 
+    def test_missing_x_image_storage_evidence_blocks(self):
+        self.record['suites']['twitter-processing-recovery']['checks'] = 18
+        self.check()
+        self.record['suites']['twitter-processing-recovery']['checks'] = 28
+        del self.record['files'][validator.PRO + '/src/Support/MediaFilesystem.php']
+        self.check()
+
     def test_missing_mandatory_fingerprint_blocks(self):
         del self.record['files'][validator.PRO + '/src/Support/ChunkedUpload.php']
         self.check()

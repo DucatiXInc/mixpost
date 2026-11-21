@@ -8,13 +8,17 @@ use Illuminate\Support\Facades\Log;
 use Inovector\Mixpost\Enums\SocialProviderResponseStatus;
 use Inovector\Mixpost\Mixpost;
 use Inovector\Mixpost\Models\Media;
+use Inovector\Mixpost\Support\MediaFilesystem;
 use Inovector\Mixpost\Support\SocialProviderResponse;
+use Inovector\Mixpost\Support\TemporaryDirectory;
 
 trait ManagesResources
 {
     private const TWITTER_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 
     private const TWITTER_CHUNKED_UPLOAD_MAX_ATTEMPTS = 3;
+
+    private const TWITTER_IMAGE_STORAGE_RETRY_DELAYS = [15, 30];
 
     public function getAccount(): SocialProviderResponse
     {
@@ -61,11 +65,19 @@ trait ManagesResources
 
         $ids = [];
         $errors = [];
-        $uploads = ($resume['kind'] ?? null) === 'twitter_media' ? ($resume['uploads'] ?? []) : [];
+        $mediaState = ($resume['kind'] ?? null) === 'twitter_media' ? $resume : [];
+        $uploads = $mediaState['uploads'] ?? [];
+        $imageReadFailures = $mediaState['image_read_failures'] ?? [];
 
         foreach ($media as $item) {
             $chunkUpload = $item->isVideo() || $item->isImageGif();
             $saved = $uploads[$item->id] ?? null;
+
+            if ($saved && $saved['done']) {
+                $ids[] = $saved['id'];
+
+                continue;
+            }
 
             if ($saved) {
                 // Poll only the accepted upload. The publishing pipeline persists this
@@ -74,12 +86,34 @@ trait ManagesResources
             }
 
             if (! $saved && ! $chunkUpload) {
-                $result = $this->connection->upload('media/upload', [
-                    'media' => $item->isLocalAdapter() ? $item->getFullPath() : $item->getUrl(),
-                    'media_type' => $item->mime_type,
-                    'media_category' => 'tweet_image',
-                    'total_bytes' => $item->size,
-                ]);
+                $imageUpload = $this->uploadTwitterImage($item);
+
+                if ($imageUpload['read_failed'] ?? false) {
+                    $failures = $imageReadFailures[$item->id] ?? 0;
+                    $delay = self::TWITTER_IMAGE_STORAGE_RETRY_DELAYS[$failures] ?? null;
+
+                    if ($delay === null || $errors) {
+                        $errors[] = 'Mixpost could not read the complete image from storage.';
+
+                        break;
+                    }
+
+                    Log::warning('mixpost.twitter_image_storage_retry', [
+                        'account_id' => $this->values['account_id'] ?? null,
+                        'media_id' => $item->id,
+                        'retry' => $failures + 1,
+                    ]);
+
+                    return ['pending' => new SocialProviderResponse(SocialProviderResponseStatus::PENDING, [
+                        'resume' => ['stage' => 'transfer', 'state' => [
+                            'kind' => 'twitter_media',
+                            'uploads' => $uploads,
+                            'image_read_failures' => [$item->id => $failures + 1],
+                        ]],
+                    ], retryAfter: $delay)];
+                }
+
+                $result = $imageUpload['result'];
             }
 
             if (! $saved && $chunkUpload) {
@@ -129,7 +163,7 @@ trait ManagesResources
             }
 
             $uploads[$item->id] = $saved ?? ['id' => $mediaId, 'done' => false, 'failures' => 0];
-            if ($saved && ! $saved['done']) {
+            if ($saved) {
                 $checked = $this->twitterProcessingStatus($mediaId, $uploads[$item->id]);
                 if (isset($checked['error'])) {
                     $errors[] = $checked['error'];
@@ -214,6 +248,43 @@ trait ManagesResources
     {
         $message = data_get($result, 'processing_info.error.message');
         return $message ? 'X video processing failed: '.$message : 'upload_failed';
+    }
+
+    /** @return array{result: mixed}|array{read_failed: true} */
+    private function uploadTwitterImage(Media $item): array
+    {
+        $directory = null;
+
+        try {
+            if ($item->disk === 'external_media') {
+                $path = $item->getUrl();
+            } elseif ($item->isLocalAdapter()) {
+                $path = $item->getFullPath();
+            } else {
+                // Give TwitterOAuth a local path so it never fetches the public
+                // URL for media managed by Mixpost's storage disk.
+                $directory = TemporaryDirectory::make();
+                $path = $directory->path(basename($item->path));
+                try {
+                    $bytes = MediaFilesystem::copyFromDisk($item->disk, $item->path, $path);
+                } catch (Exception) {
+                    return ['read_failed' => true];
+                }
+
+                if ($bytes <= 0 || ($item->size > 0 && $bytes !== (int) $item->size)) {
+                    return ['read_failed' => true];
+                }
+            }
+
+            return ['result' => $this->connection->upload('media/upload', [
+                'media' => $path,
+                'media_type' => $item->mime_type,
+                'media_category' => 'tweet_image',
+                'total_bytes' => $item->size,
+            ])];
+        } finally {
+            $directory?->delete();
+        }
     }
 
     protected function uploadTwitterChunkedMedia(Media $uploadItem, string $mediaPath): mixed

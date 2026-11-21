@@ -6,7 +6,7 @@
       "container": "/var/www/html/vendor/inovector/mixpost-pro-team/src/SocialProviders/Twitter/Concerns/ManagesResources.php",
       "status": "required",
       "documentation": "docs/customizations/x-processing-recovery.md",
-      "acceptance": "All 17 TwitterMediaReadCostTest.php checks in the exact frozen candidate; restored-database TwitterMediaReadIntegrationTest.php and TwitterUsageControlsTest.php; cached media/type preservation and zero repeat expansions; all 18 TwitterProcessingRecoveryTest.php cases including malformed status, backoff, durable checkpoint, restart, exact ID, bounded exhaustion and no tweet creation before success",
+      "acceptance": "All 17 TwitterMediaReadCostTest.php checks in the exact frozen candidate; restored-database TwitterMediaReadIntegrationTest.php and TwitterUsageControlsTest.php; cached media/type preservation and zero repeat expansions; restored-database TwitterProcessingRecoveryIntegrationTest.php for durable checkpoints and failure email behavior; all 28 TwitterProcessingRecoveryTest.php cases, including managed image reads, cleanup, silent retries and exhaustion, malformed status, backoff, durable checkpoint, restart, exact ID, bounded exhaustion and no tweet creation before success",
       "retirement": "Equivalent failure/recovery behavior must pass on pristine upstream, compiled assets, rehearsal and runtime; retain the behavior contract"
     },
     {

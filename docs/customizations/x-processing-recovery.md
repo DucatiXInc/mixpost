@@ -1,4 +1,4 @@
-# X video processing recovery
+# X publishing media recovery
 
 The November 18 9:00 AM @TrentonDucati delivery uploaded successfully (HTTP
 200) but crashed because the next status response omitted `processing_info`.
@@ -21,19 +21,27 @@ limits otherwise valid pending responses. Permanent permission errors terminate
 with the actual provider explanation. Diagnostics retain status code, retry count
 and extracted errors rather than replacing them with a PHP property error.
 
-This recovery does not replay tweet creation after a lost create response. It
-only retries status reads before publication. The existing pipeline preserves
-published IDs and thread checkpoints.
+Video-status recovery retries polling before publication. The existing pipeline
+preserves published IDs and thread checkpoints.
 
 Successful automatic X recovery sends no email. Final unrecovered
 failures still alert the existing recipient. Both ordinary and recovery mail
 recheck fresh post state at delivery and suppress stale alerts after recovery or
 while another publishing run is active.
 
+Managed images are streamed through the configured storage disk to a temporary
+local file before X receives the original bytes. A failed or incomplete read
+releases only that destination's job for two retries, after 15 and 30 seconds.
+The durable checkpoint reuses completed X media uploads across attempts. A third failure records the storage error and triggers the
+normal terminal alert. The temporary copy is removed after each attempt. Local
+images use their existing paths, and external images use their existing URLs.
+X upload and tweet creation errors retain their existing behavior.
+
 Preserve `ManagesTwitterResources.php`, notification/finalizer overrides, the
 `twitter-processing-recovery` frozen suite and mounted startup guard. Every
-candidate must pass all 18 exact-source cases and restored-MySQL pipeline/mail
-checks, including restart persistence and no duplicate publication. Rehearsal
+candidate must pass all 28 exact-source cases and restored-MySQL pipeline/mail
+checks, including restart persistence, silent image recovery, one terminal
+alert after exhaustion, and no duplicate publication. Rehearsal
 fakes provider transport and mail; live retry is only the explicitly authorized
 post/account. Follow the frozen release, register, rollback and final checkpoint
 acceptance procedures. Rollback retains current data and later provider IDs;
