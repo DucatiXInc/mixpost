@@ -9,8 +9,8 @@ running release record and exact Pro source when planning an update.
 | Document | Use it for |
 | --- | --- |
 | [Production runbook](production-runbook.md) | Host details, read-only health checks, queues and configuration |
-| [Current production release](current-production-release.md) | November 18 accepted Pro 7.6.0 runtime and separate release evidence |
-| [7.6.0 update record](mixpost-v7-6-0-upgrade.md) | Current upstream update, preservation, migration and acceptance |
+| [Current production release](current-production-release.md) | November 21 accepted Pro 7.7.0 X image-storage recovery, verification and rollback |
+| [7.6.0 update record](mixpost-v7-6-0-upgrade.md) | Previous upstream update, preservation, migration and acceptance |
 | [7.5.3 update record](mixpost-v7-5-3-upgrade.md) | Previous upstream update and recovery history |
 | [Update playbook](mixpost-update-playbook.md) | Candidate preparation, rehearsal, checkpoint, app-only cutover and rollback |
 | [Frozen release gates](frozen-release-gates.md) | Exact-source behavior checks, complete assets and startup evidence |
@@ -27,6 +27,7 @@ running release record and exact Pro source when planning an update.
 | [Instagram standalone OAuth](instagram-standalone-oauth.md) | Meta app identities, callbacks, account connection and review history |
 | [Instagram media download timeout](instagram-media-download-timeout.md) | Public storage URLs and bounded container-creation retry |
 | [Bluesky publishing resilience](bluesky-publishing-resilience.md) | Mentions, optional thumbnails and partial-thread failures |
+| [X publishing media recovery](customizations/x-processing-recovery.md) | Durable video-status recovery, managed-image staging/retries and November 21 production acceptance |
 | [Post failure notifications](post-failure-notifications.md) | Aggregate failure emails and sanitized provider explanations |
 | [Video upload recovery](video-upload-recovery.md) | October 10 incident history and recovery acceptance cases |
 | [Threads video optimization](threads-video-optimization.md) | Provider-safe derivatives and readiness checks |

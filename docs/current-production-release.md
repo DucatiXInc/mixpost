@@ -1,5 +1,86 @@
 # Current production release
 
+## November 21 X image-storage recovery update
+
+Mixpost Pro **7.7.0** reopened at **9:54:42 a.m. CST on November 21, 2026**
+(`2026-11-21T15:54:42Z`) with [PR #33](https://github.com/DucatiXInc/mixpost/pull/33).
+The actual final read-only checker passed **41 checks** at **10:04:25 a.m. CST**
+(`2026-11-21T16:04:25Z`), and the checkpoint operation wrapper recorded
+`state: accepted`. The live release record has `acceptancePending: false`.
+
+Managed X images now stage their original bytes through the configured storage
+disk into a temporary local file. Failed or incomplete reads release that
+destination for retries after 15 and 30 seconds, retaining completed X uploads
+in the durable checkpoint. Successful recovery stays silent; exhaustion records
+the storage error and retains terminal alerting. See
+[X publishing media recovery](customizations/x-processing-recovery.md).
+
+| Item | Verified value |
+| --- | --- |
+| Licensed package | Mixpost Pro Team `7.7.0` |
+| Package source | `ad194735fe0cb48f15c1a1a2e4fb2822a4a81ce4` |
+| Composer lock SHA-256 | `4d364ed2feeab2f37a3200b9fa99fdf308326a7052d542735d826eb2571573ce` |
+| Frozen image | `peachy/mixpost-pro:7.7.0-94cac98-x-image-storage-20261121` |
+| Immutable image ID | `sha256:24aeab2e7ab81b5b03e89a768b500d76a45013d4fba077bd9daa1b064578df2c` |
+| Runtime customization source | `94cac987a7e53c296dbe323e89fad33f70e1d248` |
+| Standalone fixture and rehearsal record | `5801207ff4951ad80e8a936d48e8fa5f072013c9` |
+| Source merge | [PR #33](https://github.com/DucatiXInc/mixpost/pull/33), `57d34986e68824f8b3689bbe00857f794b2384a4` |
+| App container | `mixpost-mixpost-1`, 53 mounts |
+| Effective Compose files | `/root/mixpost/docker-compose.yml` and `/root/mixpost/docker-compose.dashboard-overrides.yml` |
+| Host release record | `/root/mixpost/frozen-release.json` |
+| Deployment evidence and rollback | `/root/mixpost/backups/x-image-storage-deploy-20261121/` |
+| Accepted rehearsal | `/root/mixpost/backups/x-image-storage-rehearsal-94cac98-20261121/` |
+| Previous image | `peachy/mixpost-pro:7.7.0-a57ca75-instagram-recovery-20261120` |
+| Previous immutable ID | `sha256:7f6623f9a656bbb3a4e8918f1f79e19961743642dbecc7ae045ae38717e592d3` |
+
+| Stage | Result |
+| --- | --- |
+| Source and CI | All three main workflows passed on merge `57d3498`: [frozen release guard](https://github.com/DucatiXInc/mixpost/actions/runs/44920662624), [asset build](https://github.com/DucatiXInc/mixpost/actions/runs/44920662584), and [PHP/Laravel tests](https://github.com/DucatiXInc/mixpost/actions/runs/44920662505). |
+| Frozen candidate | The exact rehearsed image was promoted under the production tag. Fresh validation passed all 205 frozen checks, including 28 X media recovery cases, a byte-identical complete frontend rebuild, all 69 registered sources and the matching startup guard. |
+| Isolated rehearsal | A fresh consistent dump restored all 96 tables into private MySQL/Redis/storage on an internal-only network. All 38 regression suites and 21 scheduler checks passed with fake provider transport and notifications. Guarded container replacement preserved stored bytes and business fingerprints; owned rehearsal resources were removed. |
+| Cutover | Recreated only the app after draining workers and taking a fresh database/configuration checkpoint. Updated the X media trait and matching mounted guard. The guard passed before initialization, and the schema and all 92 business-table fingerprints matched before reopening. Both Compose files, all 53 mount locations, environment, credentials, networks, MySQL and Redis were preserved. |
+| Production | All 41 final read-only checks passed, including the live source/asset fingerprints, all 318 served asset hashes, health/login, Horizon, cron, web/broadcast processes, signed BIGINT and all 91 accepted Facebook dates. |
+| Storage verification | Both controlled storage probes ran as `www-data` and verified exact bytes and cleanup. The browser fixture's full 12 MiB original also matched its SHA-256 before cleanup. |
+| Authenticated browser | The existing signed-in session survived replacement. A 12 MiB video interrupted at an observed 30% resumed in the same chunk session, completed with HTTP 201 and played from HTTPS cloud storage at 640×360. Its media row, session, three objects and all three object versions were removed, with cleanup confirmed in the UI. Browser network conditions were restored. |
+| Google sign-in | Existing-user provisioning, Google configuration and the authorization redirect/callback passed. A fresh end-to-end Google login was not performed. |
+| Final acceptance | `accepted-report.json` passed through the actual checkpoint operation wrapper with `state: accepted`; registration completed. The live release record and `/root/mixpost/deployment-receipts/x-image-storage-deploy-20261121.json` record this acceptance. |
+
+During browser-fixture cleanup, the storage adapter's initial streamed read
+stalled and returned `null`; cleanup stopped before mutations. A bounded S3
+`GetObject` read (10-second connection timeout, 60-second request timeout, no SDK
+retries) then verified all original bytes and their SHA-256 before removing the
+owned fixture. Global storage configuration was unchanged. This was verification
+helper recovery; it does not demonstrate a live X publication or recovery email.
+
+No live social test post or email was sent. X publication, a naturally occurring
+X storage-recovery outcome, and recovery-email receipt were not witnessed during
+acceptance. The next scheduled destination at acceptance was
+`2026-11-22T07:15:00Z`; its later outcome is outside this release's acceptance
+evidence. The frozen image lacks PHPUnit and PDO SQLite: the standalone health
+and audience snapshot tests were unavailable, while actual health-route and
+audience report/queue checks passed in the rehearsal.
+
+### November 21 evidence and recovery
+
+Private evidence in the deployment root includes `accepted-report.json`,
+`validated/upload-gate.json`, `rehearsal-provenance.json`, `cutover/`, storage and
+browser proofs, and `image-recovery-proof.json`. The acceptance report SHA-256 is
+`af44d0378a3a3d8b19eb60d030f1d9ef9fcfeb8c098de0112379a114b0b8642d`.
+
+Use this release's `cutover/ROLLBACK.txt` and `cutover/drained/` configuration,
+override and gate snapshots. The schema stayed the same: retain the current
+database, local upload state, later posts and provider IDs for a code rollback.
+Restore the exact November 20 image together with its matching X trait, startup
+wrapper, prior passing gate and both Compose files. The consistent drained dump
+at `cutover/drained/database.sql` is for disaster recovery; never restore it over
+later successful writes without reconciliation.
+
+Both exact current and previous images were exported, checksummed and reload-tested
+in `exact-current-and-previous-images.tar.gz`; its SHA-256 is
+`87d50a54c4ef401e58483c0b7cea9b927081f97db8eabaa2cdda626bb24d85f6`.
+Keep the current/previous recovery bundles, image archive and referenced tools
+local under the [checkpoint storage policy](checkpoint-storage.md).
+
 ## November 20 grouped Instagram recovery update
 
 Mixpost Pro **7.7.0** reopened with the grouped collaborator recovery fix at
@@ -55,7 +136,7 @@ checks at `2026-11-20T05:01:54Z` and the checkpoint wrapper recorded
 | Previous accepted release | [Pro 7.6.0 with durable X processing recovery](https://github.com/DucatiXInc/mixpost/pull/27) |
 | Previous immutable ID | `sha256:9a23f7e6a418fdf94ca3b8765c3145029e2ba6ae11ad9cc7af631f084d50860b` |
 
-## Release evidence
+## November 19 release evidence
 
 | Stage | Result |
 | --- | --- |
@@ -76,7 +157,7 @@ workspace receive the removed handles and a link. See
 The workspace email was verified in rehearsal. A live collaborator rejection
 and inbox receipt had yet to occur at acceptance.
 
-## Recovery
+## November 19 recovery
 
 Use `cutover/ROLLBACK.txt`, the drained backup and both Compose/override/gate
 snapshots in the recovery root. Both exact images were exported, checksummed

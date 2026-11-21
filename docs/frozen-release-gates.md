@@ -2,9 +2,9 @@
 
 ## Automatic publishing recovery contract
 
-Candidates containing automatic Instagram recovery must add the 22-check
+Candidates containing automatic Instagram recovery require the 22-check
 `instagram-publishing-recovery` suite and its six registered source fingerprints
-to the existing 155-check contract (177 checks total). The startup wrapper and
+as part of the current 205-check contract below. The startup wrapper and
 validator enforce this together. Keep the restored-database recovery integration
 suite as an additional rehearsal requirement. See
 [the recovery contract](customizations/automatic-publishing-recovery.md).
@@ -13,12 +13,15 @@ The recovery release was deployed and accepted November 18, 2026; see the
 
 ## Current release contract
 
-Production Pro 7.5.3 requires **155 frozen behavior/build checks**; the
-[November 13 production snapshot](current-production-release.md) used 115. Preserve the complete production-matching
+Production Pro 7.7.0 requires **205 frozen behavior/build checks**, as verified in
+the [November 21 accepted release](current-production-release.md#november-21-x-image-storage-recovery-update).
+Preserve the complete production-matching
 validator, wrapper, tests and fingerprints on every update:
 
 | Suite | Checks |
 | --- | ---: |
+| `twitter-processing-recovery` | 28 |
+| `instagram-publishing-recovery` | 22 |
 | `frontend-network` | 18 |
 | `frontend-queue` | 3 |
 | `backend-recovery` | 12 |
@@ -32,6 +35,13 @@ validator, wrapper, tests and fingerprints on every update:
 | `ttb-comment-broadcast` | 2 |
 | `ttb-comment-reply-target` | 5 |
 
+The 28 [X publishing media recovery](customizations/x-processing-recovery.md)
+cases cover managed-image staging/read retries and durable video processing.
+The installed Media model, MediaFilesystem and TemporaryDirectory helpers join
+the Twitter publishing trait's mandatory fingerprints. Keep the standalone
+restored-MySQL publishing/mail fixture as separate rehearsal evidence; the frozen
+gate alone does not prove live X publishing or notification delivery.
+
 All 13 [TTB comment patch](../ops/comment-sync/README.md) source files are now
 mandatory startup fingerprints. Its snapshot/broadcast/reply-target tests are
 part of the frozen gate; the patch also requires its focused
@@ -39,8 +49,8 @@ snapshot, database, broadcast and reply-target rehearsal tests. The frozen gate
 alone does not validate that patch or a database upgrade. Its deployed source
 remains local/private; reconcile it with the reviewed candidate before promotion.
 
-The [independent Story capture](customizations/instagram-story-media.md) adds 28
-required exact-candidate behavior checks and fingerprints for the application
+The [independent Story capture](customizations/instagram-story-media.md) requires 28
+exact-candidate behavior checks and fingerprints for the application
 provider, command, collector, config and migration. A newer Mixpost importer does
 not replace this contract. The updated wrapper rejects older gates without that
 suite. Stage fresh candidate evidence before installing it; retain each prior

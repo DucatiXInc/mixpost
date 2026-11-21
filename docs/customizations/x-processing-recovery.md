@@ -47,11 +47,49 @@ post/account. Follow the frozen release, register, rollback and final checkpoint
 acceptance procedures. Rollback retains current data and later provider IDs;
 never restore a stale dump over a live publication.
 
+## November 21 production acceptance
+
+[PR #33](https://github.com/DucatiXInc/mixpost/pull/33) deployed at
+`2026-11-21T15:54:42Z` (9:54:42 a.m. CST). The exact rehearsed immutable image
+`sha256:24aeab2e7ab81b5b03e89a768b500d76a45013d4fba077bd9daa1b064578df2c`
+now runs as `peachy/mixpost-pro:7.7.0-94cac98-x-image-storage-20261121`.
+The [current production record](../current-production-release.md#november-21-x-image-storage-recovery-update)
+contains the package/source identity, CI links, full evidence and rollback plan.
+
+Fresh exact-image validation passed all 205 frozen checks and 69 registered
+sources. The accepted isolated rehearsal supplied all 38 database suites and 21
+scheduler checks, including silent image recovery, one terminal alert after
+exhaustion and no duplicate publication with fake X transport and notifications.
+The app-only cutover preserved the schema, 92 business-table fingerprints, all
+53 mount locations, MySQL, Redis, credentials and networks. The final read-only
+checker passed 41 production checks and the checkpoint wrapper recorded
+`state: accepted` at `2026-11-21T16:04:25Z` (10:04:25 a.m. CST).
+
+Production proof includes all 318 served asset hashes, the mounted guard, web,
+queue, broadcast and scheduler processes, both storage byte-readback/cleanup
+probes as `www-data`, and authenticated interruption/retry/playback of a 12 MiB
+video in the same chunk session. Its row, session, three objects and all object
+versions were removed. A stalled cleanup adapter read returned `null`; the
+verification helper retried with a bounded S3 GET and verified the full original
+checksum before cleanup. Global storage settings were unchanged.
+
+No live X publication or recovery email was witnessed. Google configuration and
+the callback passed; fresh Google sign-in remained untested. Keep these limits
+separate from the fake-provider rehearsal and actual browser/storage proof.
+
+Private deployment and recovery evidence is under
+`/root/mixpost/backups/x-image-storage-deploy-20261121/`. Its
+`accepted-report.json` SHA-256 is
+`af44d0378a3a3d8b19eb60d030f1d9ef9fcfeb8c098de0112379a114b0b8642d`.
+Rollback restores the exact November 20 image, matching bind overrides, wrapper
+and prior gate while retaining current database contents and later provider IDs.
+
 ## November 21 image-storage rehearsal
 
 The image-storage recovery from `94cac987a7e53c296dbe323e89fad33f70e1d248`
-passed an isolated frozen-image rehearsal on November 21, 2026. This is rehearsal
-evidence only; production still runs the November 20 grouped Instagram release.
+passed an isolated frozen-image rehearsal on November 21, 2026. At rehearsal
+acceptance, production still ran the November 20 grouped Instagram release. The
+same immutable candidate was deployed later that day as recorded above.
 
 | Evidence | Result |
 | --- | --- |
