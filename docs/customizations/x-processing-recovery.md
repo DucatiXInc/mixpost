@@ -47,6 +47,48 @@ post/account. Follow the frozen release, register, rollback and final checkpoint
 acceptance procedures. Rollback retains current data and later provider IDs;
 never restore a stale dump over a live publication.
 
+## November 21 image-storage rehearsal
+
+The image-storage recovery from `94cac987a7e53c296dbe323e89fad33f70e1d248`
+passed an isolated frozen-image rehearsal on November 21, 2026. This is rehearsal
+evidence only; production still runs the November 20 grouped Instagram release.
+
+| Evidence | Result |
+| --- | --- |
+| Candidate | `peachy/mixpost-pro:7.7.0-x-image-94cac98-rehearsal-20261121` |
+| Immutable candidate ID | `sha256:24aeab2e7ab81b5b03e89a768b500d76a45013d4fba077bd9daa1b064578df2c` |
+| Licensed package source | Pro Team 7.7.0, `ad194735fe0cb48f15c1a1a2e4fb2822a4a81ce4` |
+| Composer lock SHA-256 | `4d364ed2feeab2f37a3200b9fa99fdf308326a7052d542735d826eb2571573ce` |
+| Frozen gate | All 205 checks passed, including 28 X media recovery cases; the second full frontend build matched the image assets byte for byte. All 69 registered sources and the candidate startup guard matched. |
+| Restored database | A fresh consistent full dump restored all 96 tables to private MySQL. All 38 regression suites and 21 scheduler checks passed with fake provider transport and notifications. |
+| Preservation | The schema and all 92 business-table fingerprints matched after migrations and owned fixture cleanup. Signed BIGINT and all 91 accepted Facebook dates were preserved. |
+| Container replacement | The same exact image passed the guard after replacement, preserving stored bytes and business-table fingerprints on the isolated persistent volume. |
+| Final acceptance | The actual read-only checker passed through the checkpoint operation wrapper, recording `state: accepted` at `2026-11-21T15:30:21Z`. Registration was reconciled without repeating tests or mutations. |
+
+The installed-Pro image has no PHPUnit. The integration fixture therefore reads
+the same EventFake and NotificationFake collections directly: pending retries
+must dispatch no terminal failure event, and exhausted retries must produce
+exactly one on-demand failure notification. Its passing fixture SHA-256 is
+`31bfdd0e225225b2b40b8fb7b6035c8491e7e8563b47d5b9b63958935e6fd65f`.
+The frozen runtime source and frozen-suite tests were unchanged by that fixture fix.
+
+Private evidence is retained at
+`/root/mixpost/backups/x-image-storage-rehearsal-94cac98-20261121/`, including
+`accepted-report.json`, `candidate.json`, `validated/upload-gate.json`,
+`rehearsal/result.json`, logs, fingerprints and the full checkpoint. The acceptance
+report SHA-256 is
+`401d1fbd0b758c803f1e3c2ab58565b387e73a7913e9cc3242f8795f5eefbc6e`.
+
+The rehearsal used an internal-only network, separate MySQL/Redis/storage, inert
+app containers, and no cron or Horizon. All owned rehearsal containers, volumes
+and the network were removed. Production's app/MySQL/Redis identities, Compose,
+environment, networks and mounted bytes remained unchanged. No live publication,
+email, storage probe or authenticated browser upload was performed. PHPUnit's
+health test and the SQLite audience snapshot test were unavailable; the actual
+health route and audience report/queue checks passed separately. CI is separate
+from this rehearsal. Any later cutover still requires the full release playbook
+and fresh production-baseline checks.
+
 ## November 18 production acceptance
 
 [PR #25](https://github.com/DucatiXInc/mixpost/pull/25) was deployed in the exact

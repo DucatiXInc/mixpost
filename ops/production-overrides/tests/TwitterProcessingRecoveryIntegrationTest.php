@@ -143,7 +143,8 @@ try {
                 && $transport->uploads === 0 && $transport->creates === 0
                 && Notification::getFacadeRoot()->sentNotifications() === [],
                 "X image storage retry waits {$delay}s without recording a failure or sending an email");
-            Event::assertNotDispatched(PostPublishedFailed::class);
+            pipelineCheck(Event::dispatched(PostPublishedFailed::class)->isEmpty(),
+                'pending X image storage retry dispatches no terminal failure event');
         }
 
         $fixtureDisk->available = $recover;
@@ -159,9 +160,9 @@ try {
             pipelineCheck($response->hasError() && $freshPost->isFailed()
                 && ! $freshPost->hasPublishState($account) && $transport->uploads === 0 && $transport->creates === 0,
                 'exhausted X image storage retries settle as a terminal failure');
-            Notification::assertSentOnDemandTimes(PostPublishingFailedNotification::class, 1);
-            echo "PASS exhausted X image storage retries queue one terminal email
-";
+            pipelineCheck(Notification::sent(new Illuminate\Notifications\AnonymousNotifiable,
+                PostPublishingFailedNotification::class)->count() === 1,
+                'exhausted X image storage retries queue one terminal email');
         }
     }
 } finally { DB::rollBack(); }
