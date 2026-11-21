@@ -1,11 +1,14 @@
 <?php
-// Exact installed trait; no bootstrap, database, storage, mail or external network.
-require '/var/www/html/vendor/autoload.php';
-use Illuminate\Support\Facades\{Facade, Log};
+// Exact installed trait with fake storage and X transport. No app bootstrap or network.
+require getenv('MIXPOST_VENDOR_AUTOLOAD') ?: '/var/www/html/vendor/autoload.php';
+use Illuminate\Config\Repository;
+use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\{Config, Facade, File, Log, Storage};
+use Illuminate\Support\Str;
 use Illuminate\Container\Container;
 use Inovector\Mixpost\Models\Media;
 use Inovector\Mixpost\Enums\SocialProviderResponseStatus as Status;
-use Inovector\Mixpost\Support\{PublishCheckpoint, SocialProviderResponse};
+use Inovector\Mixpost\Support\{PublishCheckpoint, SocialProviderResponse, TemporaryDirectory};
 
 Facade::setFacadeApplication(new Container);
 Log::swap(new Psr\Log\NullLogger);
@@ -23,11 +26,17 @@ class XRecoveryTransport {
     public array $statuses = [];
     public array $polledIds = [];
     public object $finalized;
+    public ?Closure $beforeUpload = null;
     public function __construct() { $this->finalized = json_decode('{"media_id_string":"9223372036854775999","processing_info":{"state":"pending","check_after_secs":1}}'); }
     public function setApiVersion($version): void {}
     public function setChunkSize($size): void {}
     public function getLastHttpCode(): int { return $this->code; }
-    public function upload(...$args): object { $this->uploads++; $this->code = 200; return $this->finalized; }
+    public function upload(...$args): object {
+        $this->uploads++;
+        $this->beforeUpload?->__invoke(...$args);
+        $this->code = 200;
+        return $this->finalized;
+    }
     public function mediaStatus(string $id): mixed {
         $this->polledIds[] = $id;
         [$this->code, $result] = array_shift($this->statuses);
@@ -94,3 +103,159 @@ xCheck($r->isOk() && $r->context()['media'] === ['9223372036854775999'], 'confir
 [$c, $m, $r] = xStart(); $c->finalized = (object) ['media_id_string' => 'ready-id'];
 $r = (new XRecoveryProvider($c))->publishPost('Caption', collect([$m]));
 xCheck($r->isOk(), 'synchronous upload without processing_info remains supported');
+
+class XImageMedia extends Media
+{
+    public function isLocalAdapter(): bool
+    {
+        return $this->disk === 'local';
+    }
+
+    public function getFullPath(): string
+    {
+        return $this->path;
+    }
+
+    public function getUrl(): string
+    {
+        if ($this->disk !== 'external_media') {
+            throw new RuntimeException('Managed images must not use their public URL');
+        }
+        return $this->path;
+    }
+}
+
+$fixture = (new TemporaryDirectory(sys_get_temp_dir()))->create();
+try {
+    $stage = $fixture->path('stage');
+    Config::swap(new Repository(['mixpost' => ['temporary_directory_path' => $stage]]));
+    File::swap(new Filesystem);
+    Str::macro('randomSafe', static fn (): string => bin2hex(random_bytes(16)));
+    $storage = new class {
+        public string $bytes = 'original-image';
+        public int $reads = 0;
+        public bool $unavailable = false;
+
+        public function disk(string $disk): self
+        {
+            if ($disk !== 's3') {
+                throw new RuntimeException('Unexpected storage disk');
+            }
+            return $this;
+        }
+
+        public function readStream(string $path)
+        {
+            if ($path !== 'workspace/uploads/original.jpg') {
+                throw new RuntimeException('Unexpected object key');
+            }
+            $this->reads++;
+            if ($this->unavailable) {
+                throw new RuntimeException('Storage read timed out');
+            }
+            $stream = fopen('php://temp', 'w+b');
+            fwrite($stream, $this->bytes);
+            rewind($stream);
+
+            return $stream;
+        }
+    };
+    Storage::swap($storage);
+
+    $media = (new XImageMedia)->forceFill([
+        'id' => 1911, 'disk' => 's3', 'path' => 'workspace/uploads/original.jpg',
+        'mime_type' => 'image/jpeg', 'size' => strlen($storage->bytes),
+    ]);
+    $transport = new XRecoveryTransport;
+    $transport->finalized = (object) ['media_id_string' => 'image-id'];
+    $provider = new XRecoveryProvider($transport);
+    $uploaded = [];
+    $transport->beforeUpload = static function (string $endpoint, array $parameters) use (&$uploaded): void {
+        $uploaded = [$endpoint, $parameters, file_get_contents($parameters['media'])];
+    };
+    $response = $provider->publishPost('Caption', collect([$media]));
+    xCheck($response->isOk() && $storage->reads === 1 && $transport->creates === 1
+        && $uploaded[0] === 'media/upload' && $uploaded[2] === $storage->bytes
+        && $uploaded[1]['media_category'] === 'tweet_image' && $uploaded[1]['media_type'] === 'image/jpeg'
+        && $uploaded[1]['total_bytes'] === $media->size && glob($stage.'/*') === [],
+        'cloud image uses its configured disk, uploads exact original bytes and cleans the temporary copy');
+
+    $storage->unavailable = true;
+    $response = $provider->publishPost('Caption', collect([$media]));
+    $checkpoint = PublishCheckpoint::fromResponse($response, 0);
+    xCheck($response->isPending() && $response->retryAfter() === 15
+        && $checkpoint->stage->value === 'transfer' && ! $checkpoint->live
+        && $transport->uploads === 1 && $transport->creates === 1 && glob($stage.'/*') === [],
+        'storage interruption releases the existing publishing job before uploading or marking the destination failed');
+
+    $storage->unavailable = false;
+    $original = $storage->bytes;
+    $storage->bytes = 'partial';
+    $response = xResume($transport, $media, $response);
+    xCheck($response->isPending() && $response->retryAfter() === 30
+        && $transport->uploads === 1 && $transport->creates === 1 && glob($stage.'/*') === [],
+        'a truncated read is retried after a fresh worker restores the storage checkpoint');
+
+    $storage->bytes = $original;
+    $recovered = xResume($transport, $media, $response);
+    xCheck($recovered->isOk() && $transport->uploads === 2 && $transport->creates === 2
+        && $uploaded[2] === $original && glob($stage.'/*') === [],
+        'storage recovery publishes once with the original bytes and cleans up');
+
+    $storage->unavailable = true;
+    $readCount = $storage->reads;
+    $exhausted = $provider->publishPost('Caption', collect([$media]));
+    $exhausted = xResume($transport, $media, $exhausted);
+    $exhausted = xResume($transport, $media, $exhausted);
+    xCheck($exhausted->hasError() && $storage->reads === $readCount + 3
+        && $exhausted->context() === ['Mixpost could not read the complete image from storage.']
+        && $transport->uploads === 2 && $transport->creates === 2 && glob($stage.'/*') === [],
+        'persistent storage failure becomes terminal after three reads without uploading or creating a tweet');
+
+    $storage->unavailable = false;
+    $transport->beforeUpload = static function (): void { throw new RuntimeException('Upload timed out'); };
+    $response = $provider->publishPost('Caption', collect([$media]));
+    xCheck($response->hasError() && $transport->uploads === 3 && $transport->creates === 2 && glob($stage.'/*') === [],
+        'an X upload exception cleans the staged image and keeps normal failure handling');
+
+    $source = $fixture->path('local.jpg');
+    file_put_contents($source, $original);
+    $local = (new XImageMedia)->forceFill([
+        'id' => 1912, 'disk' => 'local', 'path' => $source,
+        'mime_type' => 'image/jpeg', 'size' => strlen($original),
+    ]);
+    $readCount = $storage->reads;
+    $transport->beforeUpload = static function (string $endpoint, array $parameters) use (&$uploaded): void {
+        $uploaded = $parameters;
+    };
+    $response = $provider->publishPost('Caption', collect([$local]));
+    xCheck($response->isOk() && $uploaded['media'] === $source && is_file($source) && $storage->reads === $readCount,
+        'local images are passed through and the source is retained');
+
+    $url = 'https://example.test/stock-image.jpg';
+    $external = (new XImageMedia)->forceFill([
+        'id' => 1913, 'disk' => 'external_media', 'path' => $url, 'mime_type' => 'image/jpeg',
+    ]);
+    $response = $provider->publishPost('Caption', collect([$external]));
+    xCheck($response->isOk() && $uploaded['media'] === $url && $storage->reads === $readCount,
+        'external images retain their URL without consulting a managed disk');
+
+    $storage->unavailable = true;
+    $transport = new XRecoveryTransport;
+    $transport->finalized = (object) ['media_id_string' => 'first-image'];
+    $images = collect([$local, $media]);
+    $pending = (new XRecoveryProvider($transport))->publishPost('Caption', $images);
+    $checkpoint = PublishCheckpoint::fromResponse($pending, 0);
+    xCheck($pending->isPending() && $transport->creates === 0 && $transport->uploads === 1
+        && $checkpoint->state['uploads'][$local->id]['id'] === 'first-image',
+        'a second image read failure checkpoints the already uploaded first image');
+    $storage->unavailable = false;
+    $transport->finalized = (object) ['media_id_string' => 'second-image'];
+    $resume = PublishCheckpoint::fromArray(json_decode(json_encode($checkpoint->toArray()), true))->toProviderState();
+    $response = (new XRecoveryProvider($transport))->publishPost('Caption', $images, ['resume' => $resume]);
+    xCheck($response->isOk() && $response->context()['media'] === ['first-image', 'second-image']
+        && $transport->uploads === 2 && $transport->creates === 1,
+        'the resumed job uploads only the missing image and creates one tweet with both IDs');
+} finally {
+    $fixture->delete();
+}
