@@ -6,7 +6,10 @@ Candidates containing automatic Instagram recovery require the 22-check
 `instagram-publishing-recovery` suite and its six registered source fingerprints
 as part of the current 205-check contract below. The startup wrapper and
 validator enforce this together. Keep the restored-database recovery integration
-suite as an additional rehearsal requirement. See
+suite as an additional rehearsal requirement. It must verify actual collaborator
+notice headers, scheduler workspace membership at delivery, direct fallback to
+Dan and deduplication. The release gate fingerprints the mounted finalizer and
+the image-baked recovery notification that implement this routing. See
 [the recovery contract](customizations/automatic-publishing-recovery.md).
 The recovery release was deployed and accepted November 18, 2026; see the
 [current production record](current-production-release.md).

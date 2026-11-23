@@ -271,19 +271,27 @@ on every update. Exact named collaborator rejections must remove only those
 invitations and continue, and definite storage download rejections must retry,
 recover identical verified media and continue without repeating live posts.
 When an Instagram destination publishes after automatic collaborator removal,
-email every user in its workspace with the removed handles and a link to the
-post. Successful storage-only recovery is silent. Send one explanatory email for
-an unrecovered terminal failure and suppress stale alerts after recovery. Keep
-account-specific recovery state, public fallback media, private receipts,
-original cloud objects and the 30-minute/12-read limits across worker restarts
-and rollback.
+send one email with the removed handles and a link to the post. Address it to the
+user from the latest scheduling activity if they still belong to the workspace
+and have an email address, and copy `dan@ducatix.com`. Address it directly to Dan
+if he scheduled it or the scheduler is unavailable. Keep the registered
+`FinalizePostPublishing.php` read-only bind override and reapply or rebase the
+registered `PostPublishingRecoveryNotification.php` in the frozen image. Drain
+success mail queued by the previous workspace-wide implementation before
+switching workers. Successful storage-only recovery is silent. Send one
+explanatory email for an unrecovered terminal failure and suppress stale alerts
+after recovery. Keep account-specific recovery state, public fallback media,
+private receipts, original cloud objects and the 30-minute/12-read limits across
+worker restarts and rollback.
 
 The frozen validator/startup guard require all 22 `instagram-publishing-recovery`
 checks and all six source fingerprints. The restored-database rehearsal must
 also pass `InstagramPublishingRecoveryIntegrationTest.php`, including actual
 account/version/media updates, retry persistence, publication guards and final
-summary rendering. An upstream implementation cannot supersede this safeguard
-without passing those same cases. Never bypass the suite to boot a new image.
+summary rendering. Require its completion marker and verify the actual `To` and
+`Cc` headers via the in-memory transport, including fallback and deduplication.
+An upstream implementation cannot supersede this safeguard without passing
+those same cases. Never bypass the suite to boot a new image.
 
 For [Pro 7.7.0](https://mixpost.app/releases/pro), Dan approved adopting the clearer
 REST API and MCP username-format message and retaining automatic Instagram recovery.
@@ -291,8 +299,8 @@ The new message comes from
 `InstagramPostOptions.php` when a post is saved. The mounted `PostFormRequest.php`
 delegates to those rules. Our recovery handles Meta's rejection during publishing.
 Run `Pro770CollaboratorValidationTest.php` to verify the message through REST and
-MCP. Run the publish-time recovery gates and verify the workspace member email
-before deploying.
+MCP. Run the publish-time recovery gates and verify the collaborator notice
+recipients in the isolated restored-database rehearsal before deploying.
 
 ## Pro 7.6 video-cover compatibility
 

@@ -13,16 +13,21 @@ use Aws\Result;
 use Aws\S3\S3Client;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Filesystem\AwsS3V3Adapter;
+use Illuminate\Notifications\Channels\MailChannel;
 use Illuminate\Support\Facades\{Auth, DB, Event, Http, Log, Notification, Storage, Validator};
 use Illuminate\Support\Str;
 use Inovector\Mixpost\Actions\Post\{AccountPublishPost, FinalizePostPublishing};
 use Inovector\Mixpost\Enums\SocialProviderResponseStatus as Status;
+use Inovector\Mixpost\Enums\WorkspaceUserRole;
+use Inovector\Mixpost\Events\Post\PostScheduled;
 use Inovector\Mixpost\Facades\WorkspaceManager;
-use Inovector\Mixpost\Models\{Account, Media, Post, PostVersion, Workspace};
+use Inovector\Mixpost\Listeners\Post\LogPostScheduledActivity;
+use Inovector\Mixpost\Models\{Account, Media, Post, PostActivity, PostVersion, Workspace};
 use Inovector\Mixpost\Notifications\PostPublishingRecoveryNotification;
 use Inovector\Mixpost\Support\{InstagramPublishingRecovery as Recovery, PublishingMediaFallback, SocialProviderResponse};
 
-Event::fake(); Notification::fake(); Log::swap(new Psr\Log\NullLogger);
+Event::fakeExcept(['eloquent.creating: '.PostActivity::class]);
+Notification::fake(); Log::swap(new Psr\Log\NullLogger);
 Http::preventStrayRequests(); config(['cache.default' => 'array']);
 $workspace = Workspace::withoutGlobalScopes()->findOrFail(1);
 WorkspaceManager::setCurrent($workspace);
@@ -190,20 +195,35 @@ try {
     contract($conversionMedia->disk === 's3' && $conversionMedia->getConversion('social_video')['disk'] === 'public'
         && $conversionMedia->getConversion('thumb')['path'] === $thumbSource, 'only rejected optimized conversion moves; original and thumbnail are preserved');
 
-    // Finalization and notification operate on real account/version rows; delivery is faked.
-    $newUser = function () use ($user) {
+    // Inspect the actual mail headers using Laravel's in-memory transport.
+    config(['mail.default' => 'array', 'mail.mailers.array' => ['transport' => 'array']]);
+    $headers = function (PostPublishingRecoveryNotification $notice, object $recipient): array {
+        $message = app(MailChannel::class)->send($recipient, $notice)->getSymfonySentMessage()->getOriginalMessage();
+
+        return [
+            array_map(fn ($address) => $address->getAddress(), $message->getTo()),
+            array_map(fn ($address) => $address->getAddress(), $message->getCc()),
+        ];
+    };
+    $danEmail = 'dan@ducatix.com';
+    $fallbackHeaders = [[$danEmail], []];
+    $newUser = function (?string $email = null) use ($user) {
         $fixture = $user->newInstance();
         $fixture->forceFill([
-            'name' => 'Recovery email fixture', 'email' => Str::uuid().'@rehearsal.invalid',
+            'name' => 'Recovery email fixture', 'email' => $email ?? Str::uuid().'@rehearsal.invalid',
             'password' => password_hash(Str::random(32), PASSWORD_BCRYPT),
         ])->save();
         return $fixture;
     };
-    $viewer = $newUser();
+    $scheduler = $newUser();
+    $priorScheduler = $newUser();
     $outsider = $newUser();
-    $workspace->attachUser($viewer->getKey(), Inovector\Mixpost\Enums\WorkspaceUserRole::VIEWER);
-    $member = $workspace->users()->where('users.id', '!=', $viewer->getKey())->firstOrFail();
-    $members = $workspace->users()->pluck('users.id')->sort()->values()->all();
+    $workspace->attachUser($scheduler->getKey(), WorkspaceUserRole::MEMBER);
+    $workspace->attachUser($priorScheduler->getKey(), WorkspaceUserRole::MEMBER);
+    $dan = $user->newQuery()->where('email', $danEmail)->first() ?? $newUser($danEmail);
+    if (! $workspace->users()->whereKey($dan->getKey())->exists()) {
+        $workspace->attachUser($dan->getKey(), WorkspaceUserRole::MEMBER);
+    }
     $other = Account::whereKeyNot($account->id)->firstOrFail();
     $post->accounts()->attach($other->id, ['status' => 0]);
     $post->accounts()->updateExistingPivot($account->id, ['status' => 1, 'provider_post_id' => null]);
@@ -214,27 +234,40 @@ try {
     $post->accounts()->updateExistingPivot($account->id, ['status' => 2, 'provider_post_id' => 'fixture-live-post', 'data' => json_encode(['post_published' => true]), 'errors' => null]);
     (new FinalizePostPublishing)($post);
     $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
-    contract($post->fresh()->hasPendingAccounts() && $sent->pluck('notifiable')->map(fn ($recipient) => $recipient->getKey())->sort()->values()->all() === $members,
-        'published Instagram recovery emails every workspace user once even when another destination is pending');
-    $notice = $sent->first()['notification'];
-    $mail = $notice->toMail($member);
+    contract($post->fresh()->hasPendingAccounts() && $sent->count() === 1,
+        'published Instagram recovery queues one notice even when another destination is pending');
+    ['notification' => $notice, 'notifiable' => $recipient] = $sent->first();
+    contract($notice instanceof PostPublishingRecoveryNotification && $notice->shouldSend($recipient, 'mail')
+        && ! $notice->shouldSend($scheduler, 'mail'), 'only the single routed success notice is eligible for delivery');
+    contract($headers($notice, $recipient) === $fallbackHeaders, 'a legacy post with no scheduling history goes directly to Dan');
+    $post->logScheduledActivity($priorScheduler->getKey(), []);
+    Auth::login($scheduler);
+    (new LogPostScheduledActivity)->handle(new PostScheduled($post));
+    Auth::login($user);
+    $post->logUpdatedScheduleTimeActivity($priorScheduler->getKey(), []);
+    contract($headers($notice, $recipient) === [[$scheduler->email], [$danEmail]],
+        'latest recorded scheduler gets To and Dan gets Cc even when a different user created the post or edited its schedule');
+    $mail = $notice->toMail($recipient);
     $body = implode(' ', $mail->introLines);
-    contract($notice instanceof PostPublishingRecoveryNotification && $notice->shouldSend($member, 'mail')
-        && $notice->shouldSend($viewer, 'mail') && ! $notice->shouldSend($outsider, 'mail'),
-        'success notice includes viewers and excludes outsiders');
     contract(str_contains($body, '@private_person') && str_contains($body, '@other.person')
         && ! str_contains($body, '@third_person') && str_contains($body, 'published successfully')
         && str_contains($mail->actionUrl, $post->uuid), 'success email names only removed collaborators and links to the post');
     $html = (string) app(Illuminate\Mail\Markdown::class)->render($mail->markdown, $mail->data());
     contract(str_contains($html, '@other.person') && str_contains($html, $post->uuid), 'collaborator email renders correctly');
-    $workspace->users()->detach($viewer->getKey());
-    contract(! $notice->shouldSend($viewer, 'mail'), 'queued success notice is suppressed when a user leaves the workspace');
+    $workspace->users()->detach($scheduler->getKey());
+    contract($headers($notice, $recipient) === $fallbackHeaders, 'a scheduler who leaves the workspace before delivery falls back to Dan');
+    $post->logScheduledActivity($outsider->getKey(), []);
+    contract($headers($notice, $recipient) === $fallbackHeaders, 'a scheduler outside this workspace falls back to Dan');
+    $post->logScheduledActivity(0, []);
+    contract($headers($notice, $recipient) === $fallbackHeaders, 'an automated schedule with no actor falls back to Dan');
+    $post->logScheduledActivity($dan->getKey(), []);
+    contract($headers($notice, $recipient) === $fallbackHeaders, 'Dan gets a single copy when he scheduled the post');
     $post->accounts()->detach($other->id);
     (new FinalizePostPublishing)($post->fresh());
     $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
-    contract($sent->count() === count($members), 'repeated finalization does not resend the collaborator notice');
+    contract($sent->count() === 1, 'repeated finalization does not resend the collaborator notice');
     $oldSuccess = new PostPublishingRecoveryNotification($post, [$recovery->state($post, $account)], false);
-    contract(! $oldSuccess->shouldSend($member, 'mail'), 'legacy success mail without a published destination is suppressed');
+    contract(! $oldSuccess->shouldSend($recipient, 'mail'), 'legacy success mail without a published destination is suppressed');
 
     Notification::fake();
     $storagePost->accounts()->updateExistingPivot($account->id, ['status' => 2, 'provider_post_id' => 'fixture-storage-published', 'errors' => null]);
@@ -242,7 +275,7 @@ try {
     contract(Notification::getFacadeRoot()->sentNotifications() === [], 'successful storage-only recovery sends no email');
 
     $post->accounts()->updateExistingPivot($account->id, ['status' => 3, 'provider_post_id' => null, 'data' => null, 'errors' => json_encode(['Recovery exhausted'])]);
-    contract(! $notice->shouldSend($member, 'mail'), 'queued success notice requires the matching published destination');
+    contract(! $notice->shouldSend($recipient, 'mail'), 'queued success notice requires the matching published destination');
     $post->setFailed();
     (new FinalizePostPublishing)($post->fresh());
     $sent = collect(Notification::getFacadeRoot()->sentNotifications())->flatten(3)->filter(fn ($row) => is_array($row) && isset($row['notification']));
@@ -269,3 +302,4 @@ try {
     DB::rollBack();
     foreach ($ownedFiles as $path) { Storage::disk('public')->delete($path); }
 }
+echo 'Instagram publishing recovery integration passed'.PHP_EOL;
