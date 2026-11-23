@@ -147,8 +147,7 @@ class FinalizePostPublishing
             return;
         }
 
-        Notification::send(
-            $post->workspace->users()->get(),
+        Notification::route('mail', PostPublishingRecoveryNotification::COLLABORATOR_ALERT_EMAIL)->notify(
             (new PostPublishingRecoveryNotification($post, array_values($recoveries), false))->delay(now()->addSeconds(10))
         );
 
